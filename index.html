@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Google Sheet Search Viewer</title>
+  <title>ZCQRScanner</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     body { 
@@ -222,10 +222,24 @@
       }
     }
 
+    // ✅ Format date to long date
+    function formatDateLong(dateStr) {
+      if (!dateStr) return "";
+      const d = new Date(dateStr);
+      if (isNaN(d)) return dateStr;
+      return d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "2-digit" });
+    }
+
     function fillFields(row) {
       FIELDS_TO_SHOW.forEach(field => {
         const el = document.getElementById(field);
-        if (el) el.textContent = row[field] || "\u00A0";
+        if (el) {
+          let value = row[field] || "\u00A0";
+          if (["DATE RECEIPT", "RELEASED_D", "OR DATE"].includes(field)) {
+            value = formatDateLong(value);
+          }
+          el.textContent = value;
+        }
       });
     }
 
@@ -288,7 +302,7 @@
         return;
       }
 
-      const filtered = sheetData.filter(row => row[selectedField] && String(row[selectedField]).trim().toLowerCase() === query);
+      const filtered = sheetData.filter(row => row[selectedField] && String(row[selectedField]).trim().toLowerCase().includes(query));
       showResults(filtered);
 
       if (filtered.length > 0) {
@@ -396,6 +410,7 @@
     // Search events
     document.getElementById("searchBtn").addEventListener("click", runSearch);
     document.getElementById("clearBtn").addEventListener("click", clearSearch);
+    document.getElementById("searchBox").addEventListener("input", runSearch); // ✅ Live search
     document.getElementById("searchBox").addEventListener("keypress", e => {
       if (e.key === "Enter") runSearch();
     });
