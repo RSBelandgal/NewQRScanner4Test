@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>NewQRScanner4Test</title>
+  <title>Google Sheet Search Viewer</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     body { 
@@ -79,6 +79,15 @@
     body.dark th { background-color: #333; border-color: #555; }
     body.dark td { border-color: #555; }
     body.dark tr:hover { background-color: #444; }
+
+    /* ✅ Scanner resize fix for mobile */
+    @media (max-width: 600px) {
+      #video {
+        width: 100% !important;
+        height: auto !important;
+        max-width: 100% !important;
+      }
+    }
   </style>
 </head>
 <body>
@@ -137,7 +146,7 @@
     let sheetData = [];
     let totalRecords = 0;
 
-    const FIELDS_TO_SHOW = [ "CONTROL NO", "PIN", "NEW PIN", "APPLICANT NAME", "LOT/SURVEY NO", "BARANGAYID_F", "CLASSIFICATIONID_F", "PLUSCODES", "REMARKS" ];
+    const FIELDS_TO_SHOW = [ "DATE RECEIPT", "RELEASED_D", "CONTROL NO", "PIN", "NEW PIN", "APPLICANT NAME", "LOT/SURVEY NO", "LOT/SURVEY NO", "LAND AREA", "BARANGAYID_F", "CLASSIFICATIONID_F", "PLUSCODES", "OR NO", "OR DATE", "REMARKS" ];
     const SEARCHABLE_FIELDS = [ "CONTROL NO", "PIN", "NEW PIN", "APPLICANT NAME", "LOT/SURVEY NO" ];
 
     const dropdown = document.getElementById("searchField");
