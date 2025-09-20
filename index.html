@@ -36,6 +36,9 @@
       transition: background 0.3s, color 0.3s;
       position: relative;
       white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
     }
     #searchBtn { background: #4285F4; margin-right: 5px; }
     #searchBtn:hover { background: #357AE8; }
@@ -43,10 +46,29 @@
     #clearBtn:hover { background: #d32f2f; }
     #scanBtn { background: #4CAF50; margin-right: 5px; }
     #scanBtn:hover { background: #45a049; }
-    #uploadBtn { background: #FF9800; }
+    #uploadBtn { background: #FF9800; margin-right: 5px; }
     #uploadBtn:hover { background: #e68900; }
     #darkModeBtn { background: #333; margin-left: 5px; }
     body.dark #darkModeBtn { background: #666; color: #fff; }
+
+    .spinner {
+      border: 3px solid transparent;
+      border-top: 3px solid white;
+      border-radius: 50%;
+      width: 16px;
+      height: 16px;
+      margin-left: 8px;
+      animation: spin 1s linear infinite;
+    }
+    .spinner.scan { border-top-color: #fff; }
+    .spinner.upload { border-top-color: #fff; }
+    body.dark .spinner.scan { border-top-color: #fff; }
+    body.dark .spinner.upload { border-top-color: #fff; }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
 
     #validatedMsg { 
       font-weight: bold; 
@@ -76,7 +98,7 @@
     body.dark td { border-color: #555; }
     body.dark tr:hover { background-color: #444; }
 
-    /* Scanner popup overlay */
+    /* ✅ Scanner popup overlay */
     #scannerOverlay {
       position: fixed;
       top: 0; left: 0;
@@ -148,6 +170,7 @@
     <button id="darkModeBtn">🌙 Dark Mode</button>
   </div>
 
+  <!-- ✅ Scanner Popup -->
   <div id="scannerOverlay">
     <div id="scannerBox">
       <h3>Scan QR Code</h3>
@@ -180,6 +203,7 @@
   <div id="counter"></div>
   <div id="results"></div>
 
+  <!-- jsQR -->
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 
   <script>
@@ -187,7 +211,7 @@
     let sheetData = [];
     let totalRecords = 0;
 
-    const FIELDS_TO_SHOW = [ "DATE RECEIPT", "RELEASED_D", "CONTROL NO", "PIN", "NEW PIN", "APPLICANT NAME", "LOT/SURVEY NO", "LAND AREA", "BARANGAYID_F", "CLASSIFICATIONID_F", "PLUSCODES", "OR NO", "OR DATE", "REMARKS" ];
+    const FIELDS_TO_SHOW = [ "DATE RECEIPT", "RELEASED_D", "CONTROL NO", "PIN", "NEW PIN", "APPLICANT NAME", "LOT/SURVEY NO", "LOT/SURVEY NO", "LAND AREA", "BARANGAYID_F", "CLASSIFICATIONID_F", "PLUSCODES", "OR NO", "OR DATE", "REMARKS" ];
     const SEARCHABLE_FIELDS = [ "CONTROL NO", "PIN", "NEW PIN", "APPLICANT NAME", "LOT/SURVEY NO" ];
 
     const dropdown = document.getElementById("searchField");
@@ -198,35 +222,16 @@
       dropdown.appendChild(option);
     });
 
-    function formatLongDate(dateStr) {
-      if (!dateStr) return "\u00A0";
-      const d = new Date(dateStr);
-      if (isNaN(d)) return dateStr; // if not a valid date, show as is
-      const options = { year: "numeric", month: "long", day: "2-digit" };
-      return d.toLocaleDateString("en-US", options);
-    }
-
-    function fillFields(row) {
-      FIELDS_TO_SHOW.forEach(field => {
-        const el = document.getElementById(field);
-        if (el) {
-          if (["DATE RECEIPT", "RELEASED_D", "OR DATE"].includes(field)) {
-            el.textContent = formatLongDate(row[field]);
-          } else {
-            el.textContent = row[field] || "\u00A0";
-          }
-        }
-      });
-    }
-
-    function clearFields() {
-      FIELDS_TO_SHOW.forEach(field => {
-        const el = document.getElementById(field);
-        if (el) el.textContent = "\u00A0";
-      });
-    }
+    const scanBtn = document.getElementById("scanBtn");
+    const uploadBtn = document.getElementById("uploadBtn");
 
     async function loadData() {
+      // Disable buttons & show spinner
+      scanBtn.disabled = true;
+      uploadBtn.disabled = true;
+      scanBtn.innerHTML = 'Scan QR <span class="spinner scan"></span>';
+      uploadBtn.innerHTML = 'Upload QR <span class="spinner upload"></span>';
+
       const statusDiv = document.getElementById("status");
       statusDiv.textContent = "Loading data…";
 
@@ -246,6 +251,26 @@
       } catch(err) {
         statusDiv.textContent = "Failed to load data.";
       }
+
+      // Enable buttons & remove spinner
+      scanBtn.disabled = false;
+      uploadBtn.disabled = false;
+      scanBtn.textContent = 'Scan QR';
+      uploadBtn.textContent = 'Upload QR';
+    }
+
+    function fillFields(row) {
+      FIELDS_TO_SHOW.forEach(field => {
+        const el = document.getElementById(field);
+        if (el) el.textContent = row[field] || "\u00A0";
+      });
+    }
+
+    function clearFields() {
+      FIELDS_TO_SHOW.forEach(field => {
+        const el = document.getElementById(field);
+        if (el) el.textContent = "\u00A0";
+      });
     }
 
     function showResults(data) {
@@ -323,11 +348,10 @@
       document.getElementById("searchBox").focus();
     }
 
-    // QR Scanner
+    // QR Scanner with popup
     const video = document.getElementById("video");
     const canvas = document.getElementById("canvas");
     const ctx = canvas.getContext("2d");
-    const scanBtn = document.getElementById("scanBtn");
     let scanning = false, stream = null, animationId = null;
 
     async function startScanner() {
@@ -341,7 +365,7 @@
           scanning = true;
           tick();
         });
-        document.getElementById("scannerOverlay").style.display = "flex"; 
+        document.getElementById("scannerOverlay").style.display = "flex";
         scanBtn.textContent = "Stop Scan";
       } catch (err) {
         alert("Camera error: " + err.message);
@@ -352,7 +376,7 @@
       scanning = false;
       if (animationId) cancelAnimationFrame(animationId);
       if (stream) stream.getTracks().forEach(t => t.stop());
-      document.getElementById("scannerOverlay").style.display = "none"; 
+      document.getElementById("scannerOverlay").style.display = "none";
       scanBtn.textContent = "Scan QR";
     }
 
@@ -375,7 +399,6 @@
     scanBtn.addEventListener("click", () => {
       if (scanning) stopScanner(); else startScanner();
     });
-
     document.getElementById("closeScanner").addEventListener("click", stopScanner);
 
     // QR Upload
@@ -384,19 +407,21 @@
       const file = e.target.files[0];
       if (!file) return;
       const reader = new FileReader();
-      reader.onload = function() {
+      reader.onload = () => {
         const img = new Image();
-        img.onload = function() {
+        img.onload = () => {
           canvas.width = img.width;
           canvas.height = img.height;
           ctx.drawImage(img, 0, 0);
-          const imageData = ctx.getImageData(0,0,canvas.width,canvas.height);
-          const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const code = jsQR(imageData.data, imageData.width, imageData.height);
           if (code) {
             document.getElementById("searchBox").value = code.data;
             document.getElementById("searchField").value = "CONTROL NO";
             runSearch();
-          } else alert("No QR code found in image!");
+          } else {
+            alert("No QR code found.");
+          }
         };
         img.src = reader.result;
       };
@@ -406,12 +431,11 @@
     // Search events
     document.getElementById("searchBtn").addEventListener("click", runSearch);
     document.getElementById("clearBtn").addEventListener("click", clearSearch);
-    document.getElementById("searchBox").addEventListener("keyup", runSearch);
+    document.getElementById("searchBox").addEventListener("keypress", e => { if (e.key === "Enter") runSearch(); });
+    document.getElementById("searchBox").addEventListener("input", runSearch);
 
     // Dark mode
-    document.getElementById("darkModeBtn").addEventListener("click", () => {
-      document.body.classList.toggle("dark");
-    });
+    document.getElementById("darkModeBtn").addEventListener("click", () => document.body.classList.toggle("dark"));
 
     loadData();
   </script>
