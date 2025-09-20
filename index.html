@@ -48,10 +48,6 @@
     #darkModeBtn { background: #333; margin-left: 5px; }
     body.dark #darkModeBtn { background: #666; color: #fff; }
 
-    /* Scanner video */
-    #video { width: 100%; max-width: 400px; display: none; margin-top: 10px; }
-    #canvas { display: none; }
-
     #validatedMsg { 
       font-weight: bold; 
       display: none; 
@@ -80,13 +76,53 @@
     body.dark td { border-color: #555; }
     body.dark tr:hover { background-color: #444; }
 
-    /* ✅ Scanner resize fix for mobile */
-    @media (max-width: 600px) {
-      #video {
-        width: 100% !important;
-        height: auto !important;
-        max-width: 100% !important;
-      }
+    /* ✅ Scanner popup overlay */
+    #scannerOverlay {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.85);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+      padding: 10px;
+      box-sizing: border-box;
+    }
+    #scannerBox {
+      background: #fff;
+      border-radius: 12px;
+      padding: 15px;
+      width: 100%;
+      max-width: 500px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    #scannerBox h3 {
+      margin: 0 0 10px 0;
+      font-size: 18px;
+      text-align: center;
+      color: #333;
+    }
+    #video {
+      width: 100% !important;
+      height: auto !important;
+      border-radius: 10px;
+      background: #000;
+    }
+    #canvas { display: none; }
+    #closeScanner {
+      margin-top: 12px;
+      padding: 8px 16px;
+      background: #f44336;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    #closeScanner:hover {
+      background: #d32f2f;
     }
   </style>
 </head>
@@ -112,10 +148,17 @@
     <button id="darkModeBtn">🌙 Dark Mode</button>
   </div>
 
-  <video id="video" playsinline></video>
-  <canvas id="canvas"></canvas>
-  <div id="validatedMsg"></div>
+  <!-- ✅ Scanner Popup -->
+  <div id="scannerOverlay">
+    <div id="scannerBox">
+      <h3>Scan QR Code</h3>
+      <video id="video" playsinline></video>
+      <canvas id="canvas"></canvas>
+      <button id="closeScanner">Close</button>
+    </div>
+  </div>
 
+  <div id="validatedMsg"></div>
   <input type="file" id="uploadQR" accept="image/*" style="display:none;">
 
   <div id="fields">
@@ -268,7 +311,7 @@
       document.getElementById("searchBox").focus();
     }
 
-    // ✅ QR Scanner with toggle button
+    // ✅ QR Scanner with popup
     const video = document.getElementById("video");
     const canvas = document.getElementById("canvas");
     const ctx = canvas.getContext("2d");
@@ -279,7 +322,6 @@
       try {
         stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
         video.srcObject = stream;
-        video.style.display = "block";
         video.play();
         video.addEventListener("loadedmetadata", () => {
           canvas.width = video.videoWidth;
@@ -287,6 +329,7 @@
           scanning = true;
           tick();
         });
+        document.getElementById("scannerOverlay").style.display = "flex"; // show popup
         scanBtn.textContent = "Stop Scan";
       } catch (err) {
         alert("Camera error: " + err.message);
@@ -297,7 +340,7 @@
       scanning = false;
       if (animationId) cancelAnimationFrame(animationId);
       if (stream) stream.getTracks().forEach(t => t.stop());
-      video.style.display = "none";
+      document.getElementById("scannerOverlay").style.display = "none"; // hide popup
       scanBtn.textContent = "Scan QR";
     }
 
@@ -321,6 +364,8 @@
       if (scanning) stopScanner(); else startScanner();
     });
 
+    document.getElementById("closeScanner").addEventListener("click", stopScanner);
+
     // QR Upload
     document.getElementById("uploadBtn").addEventListener("click", () => document.getElementById("uploadQR").click());
     document.getElementById("uploadQR").addEventListener("change", e => {
@@ -339,35 +384,24 @@
             document.getElementById("searchBox").value = code.data;
             document.getElementById("searchField").value = "CONTROL NO";
             runSearch();
-          } else alert("No QR code found in image.");
+          } else {
+            alert("No QR code found.");
+          }
         };
         img.src = reader.result;
       };
       reader.readAsDataURL(file);
     });
 
+    // Search events
     document.getElementById("searchBtn").addEventListener("click", runSearch);
     document.getElementById("clearBtn").addEventListener("click", clearSearch);
-    document.getElementById("searchBox").addEventListener("input", runSearch);
-
-    // Dark Mode (default = light)
-    const darkModeBtn = document.getElementById("darkModeBtn");
-    function setDarkMode(enabled) {
-      if (enabled) {
-        document.body.classList.add("dark");
-        darkModeBtn.textContent = "☀️ Light Mode";
-      } else {
-        document.body.classList.remove("dark");
-        darkModeBtn.textContent = "🌙 Dark Mode";
-      }
-    }
-    darkModeBtn.addEventListener("click", () => {
-      setDarkMode(!document.body.classList.contains("dark"));
-      localStorage.setItem("darkMode", document.body.classList.contains("dark"));
+    document.getElementById("searchBox").addEventListener("keypress", e => {
+      if (e.key === "Enter") runSearch();
     });
 
-    // start always in light mode
-    setDarkMode(false);
+    // Dark mode
+    document.getElementById("darkModeBtn").addEventListener("click", () => document.body.classList.toggle("dark"));
 
     loadData();
   </script>
