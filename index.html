@@ -48,42 +48,16 @@
     #darkModeBtn { background: #333; margin-left: 5px; }
     body.dark #darkModeBtn { background: #666; color: #fff; }
 
-    /* Spinner */
-    .spinner {
-      border: 2px solid #f3f3f3; 
-      border-top: 2px solid #fff; 
-      border-radius: 50%;
-      width: 14px;
-      height: 14px;
-      animation: spin 1s linear infinite;
-      display: inline-block;
-      vertical-align: middle;
-      margin-left: 5px;
-    }
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-
-    /* Button row */
-    #scanUploadWrap {
-      display: flex;
-      justify-content: flex-start;
-      align-items: center;
-      gap: 10px;
-      margin-top: 10px;
-      position: relative;
-      flex-wrap: wrap; /* allows wrapping on small screens */
-    }
+    /* Scanner video */
+    #video { width: 100%; max-width: 400px; display: none; margin-top: 10px; }
+    #canvas { display: none; }
 
     #validatedMsg { 
       font-weight: bold; 
       display: none; 
-      font-size: 25px; 
-      position: absolute;
-      left: 50%;
-      transform: translateX(-50%);
-      white-space: nowrap;
+      font-size: 22px; 
+      margin-top: 10px;
+      text-align: center;
     }
 
     #fields { margin-top: 20px; padding: 15px; background: #f5f5f5; border-radius: 8px; border: 1px solid #ddd; }
@@ -105,29 +79,6 @@
     body.dark th { background-color: #333; border-color: #555; }
     body.dark td { border-color: #555; }
     body.dark tr:hover { background-color: #444; }
-
-    #reader { width: 100%; max-width: 400px; margin: 15px 0; display: none; }
-    #uploadQR { display: none; }
-
-    /* Mobile responsive tweaks */
-    @media screen and (max-width: 768px) {
-      body { padding: 5px; }
-      #searchBox, #searchField { width: auto; max-width: 100%; }
-      #searchBtn, #clearBtn, #scanBtn, #uploadBtn, #darkModeBtn { font-size: 14px; padding: 7px 12px; }
-      #fields { padding: 10px; }
-      #reader { max-width: 100%; }
-      #topHeader { flex-direction: column; align-items: flex-start; gap: 5px; }
-      #sheetInfo { text-align: left; margin-top: 5px; }
-
-      /* Move validated/no record message below buttons and center it on mobile */
-      #validatedMsg {
-        position: static !important;
-        transform: none !important;
-        display: block;
-        margin: 10px auto 0 auto;
-        text-align: center;
-      }
-    }
   </style>
 </head>
 <body>
@@ -140,21 +91,23 @@
     </div>
   </div>
 
-  <h2 style="margin-top: 0; margin-bottom: 10px;">LUZAD ZONING CERTIFICATION VERIFICATION @ CPDO2025</h2>
+  <h2>LUZAD ZONING CERTIFICATION VERIFICATION @ CPDO2025</h2>
   <select id="searchField"></select>
   <input type="text" id="searchBox" placeholder="Search..." />
   <button id="searchBtn">Search</button>
   <button id="clearBtn">Clear</button>
 
-  <span id="scanUploadWrap">
+  <div>
     <button id="scanBtn">Scan QR</button>
     <button id="uploadBtn">Upload QR</button>
     <button id="darkModeBtn">🌙 Dark Mode</button>
-    <span id="validatedMsg">VALIDATED DATA!</span>
-  </span>
+  </div>
 
-  <input type="file" id="uploadQR" accept="image/*">
-  <div id="reader"></div>
+  <video id="video" playsinline></video>
+  <canvas id="canvas"></canvas>
+  <div id="validatedMsg"></div>
+
+  <input type="file" id="uploadQR" accept="image/*" style="display:none;">
 
   <div id="fields">
     <div class="field"><span class="field-name">DATE RECEIPT :</span><span class="field-value" id="DATE RECEIPT">&nbsp;</span></div>
@@ -169,26 +122,22 @@
     <div class="field"><span class="field-name">ZONE CLASS :</span><span class="field-value" id="CLASSIFICATIONID_F">&nbsp;</span></div>
     <div class="field"><span class="field-name">PLUSCODE :</span><span class="field-value" id="PLUSCODES">&nbsp;</span></div>
     <div class="field"><span class="field-name">OR NO :</span><span class="field-value" id="OR NO">&nbsp;</span></div>
-    <div class="field"><span class="field-name">OR DATE :</span><span class="field-value" id="OR DATE">&nbsp;</span></div>
+    <div class="field"><span class="field-name">OR DATE :</span><span class="field-value" id="OR DATE">&nbsp;</span></div>    
     <div class="field"><span class="field-name">REMARKS :</span><span class="field-value" id="REMARKS">&nbsp;</span></div>
   </div>
 
   <div id="counter"></div>
   <div id="results"></div>
 
-  <script src="https://unpkg.com/html5-qrcode/minified/html5-qrcode.min.js"></script>
+  <!-- jsQR -->
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 
-  <!-- JS (same as before) -->
-  <script src="https://unpkg.com/html5-qrcode/minified/html5-qrcode.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
   <script>
     const apiURL = "https://script.google.com/macros/s/AKfycbzl2hyJ6R807HCLGRZXPgniqPhuHpxJpSIEzy3cXE-W9Otnr6RUGh5L9TxB7OMgns3i/exec";
     let sheetData = [];
     let totalRecords = 0;
-    let html5QrCode;
 
-    const FIELDS_TO_SHOW = [ "DATE RECEIPT", "RELEASED_D", "CONTROL NO", "PIN", "NEW PIN", "APPLICANT NAME", "LOT/SURVEY NO", "LAND AREA", "BARANGAYID_F", "CLASSIFICATIONID_F", "PLUSCODES", "OR NO", "OR DATE", "REMARKS" ];
+    const FIELDS_TO_SHOW = [ "CONTROL NO", "PIN", "NEW PIN", "APPLICANT NAME", "LOT/SURVEY NO", "BARANGAYID_F", "CLASSIFICATIONID_F", "PLUSCODES", "REMARKS" ];
     const SEARCHABLE_FIELDS = [ "CONTROL NO", "PIN", "NEW PIN", "APPLICANT NAME", "LOT/SURVEY NO" ];
 
     const dropdown = document.getElementById("searchField");
@@ -201,74 +150,37 @@
 
     async function loadData() {
       const statusDiv = document.getElementById("status");
-      const scanBtn = document.getElementById("scanBtn");
-      const uploadBtn = document.getElementById("uploadBtn");
-
-      scanBtn.disabled = true;
-      uploadBtn.disabled = true;
-      scanBtn.innerHTML = 'Scan QR <span class="spinner"></span>';
-      uploadBtn.innerHTML = 'Upload QR <span class="spinner"></span>';
-      statusDiv.textContent = "Loading data please wait…";
+      statusDiv.textContent = "Loading data…";
 
       try {
         const res = await fetch(apiURL);
-        if (!res.ok) throw new Error("HTTP error " + res.status);
         const rawData = await res.json();
-
-        if (!rawData || !Array.isArray(rawData.data) || rawData.data.length < 2) {
-          statusDiv.textContent = "No data or invalid format returned.";
-          return;
-        }
-
         const headers = rawData.data[0];
         sheetData = rawData.data.slice(1).map(row => {
           let obj = {};
           headers.forEach((h, i) => obj[h] = row[i]);
           return obj;
         });
-
         totalRecords = sheetData.length;
         document.getElementById("totalRecords").textContent = `Total Records: ${totalRecords}`;
         document.getElementById("sheetName").textContent = rawData.spreadsheetName || "Unknown Sheet";
-
-        clearResults();
         statusDiv.textContent = "Data loaded. You can now search.";
       } catch(err) {
-        console.error("Error loading data:", err);
-        statusDiv.textContent = "Failed to load data. See console for details.";
-      } finally {
-        scanBtn.disabled = false;
-        uploadBtn.disabled = false;
-        scanBtn.innerHTML = 'Scan QR';
-        uploadBtn.innerHTML = 'Upload QR';
+        statusDiv.textContent = "Failed to load data.";
       }
-    }
-
-    function formatDate(dateStr) {
-      if (!dateStr) return "\u00A0";
-      const d = new Date(dateStr);
-      if (isNaN(d)) return dateStr;
-      const options = { year: 'numeric', month: 'long', day: 'numeric' };
-      return d.toLocaleDateString('en-US', options);
     }
 
     function fillFields(row) {
       FIELDS_TO_SHOW.forEach(field => {
         const el = document.getElementById(field);
-        if(el) {
-          if(["DATE RECEIPT", "RELEASED_D", "OR DATE"].includes(field)) {
-            el.textContent = formatDate(row[field]);
-          } else {
-            el.textContent = row[field] || "\u00A0";
-          }
-        }
+        if (el) el.textContent = row[field] || "\u00A0";
       });
     }
 
     function clearFields() {
       FIELDS_TO_SHOW.forEach(field => {
         const el = document.getElementById(field);
-        if(el) el.textContent = "\u00A0";
+        if (el) el.textContent = "\u00A0";
       });
     }
 
@@ -278,12 +190,11 @@
       resultsDiv.innerHTML = "";
       counterDiv.textContent = `Showing ${data.length} of ${totalRecords} record(s)`;
 
-      if(data.length === 0) return;
-
+      if (data.length === 0) return;
       const table = document.createElement("table");
       const thead = document.createElement("thead");
       const headerRow = document.createElement("tr");
-      ["CONTROL NO", "APPLICANT NAME", "LOT/SURVEY NO", "ZONING CLASSIFICATION", "BARANGAY"].forEach(h => {
+      ["CONTROL NO", "APPLICANT NAME", "LOT/SURVEY NO", "CLASSIFICATIONID_F", "BARANGAYID_F"].forEach(h => {
         const th = document.createElement("th");
         th.textContent = h;
         headerRow.appendChild(th);
@@ -314,34 +225,30 @@
 
     function runSearch() {
       if (sheetData.length === 0) return;
-
       const query = document.getElementById("searchBox").value.trim().toLowerCase();
       const selectedField = document.getElementById("searchField").value;
       const validatedMsg = document.getElementById("validatedMsg");
 
-      if(!query) {
+      if (!query) {
         clearResults();
         clearFields();
         validatedMsg.style.display = "none";
         return;
       }
 
-      const filtered = sheetData.filter(row => {
-        return row[selectedField] && String(row[selectedField]).trim().toLowerCase() === query;
-      });
-
+      const filtered = sheetData.filter(row => row[selectedField] && String(row[selectedField]).trim().toLowerCase() === query);
       showResults(filtered);
 
       if (filtered.length > 0) {
         fillFields(filtered[0]);
         validatedMsg.textContent = "VALIDATED DATA!";
         validatedMsg.style.color = "green";
-        validatedMsg.style.display = "inline";
+        validatedMsg.style.display = "block";
       } else {
         clearFields();
         validatedMsg.textContent = "NO RECORD FOUND!";
         validatedMsg.style.color = "red";
-        validatedMsg.style.display = "inline";
+        validatedMsg.style.display = "block";
       }
     }
 
@@ -352,50 +259,70 @@
       document.getElementById("searchBox").focus();
     }
 
-    // QR Scanner
-    function startScanner() {
-      const reader = document.getElementById("reader");
-      reader.style.display = "block";
-      html5QrCode = new Html5Qrcode("reader");
-      html5QrCode.start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: 250 },
-        onScanSuccess
-      ).catch(err => console.error("Unable to start scanner:", err));
-    }
+    // ✅ QR Scanner with toggle button
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+    const scanBtn = document.getElementById("scanBtn");
+    let scanning = false, stream = null, animationId = null;
 
-    function stopScanner() {
-      if (html5QrCode) {
-        html5QrCode.stop().then(() => {
-          document.getElementById("reader").style.display = "none";
-        }).catch(err => console.error("Failed to stop scanner:", err));
+    async function startScanner() {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        video.srcObject = stream;
+        video.style.display = "block";
+        video.play();
+        video.addEventListener("loadedmetadata", () => {
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          scanning = true;
+          tick();
+        });
+        scanBtn.textContent = "Stop Scan";
+      } catch (err) {
+        alert("Camera error: " + err.message);
       }
     }
 
-    function onScanSuccess(decodedText) {
-      document.getElementById("searchBox").value = decodedText;
-      document.getElementById("searchField").value = "CONTROL NO";
-      runSearch();
-      stopScanner();
+    function stopScanner() {
+      scanning = false;
+      if (animationId) cancelAnimationFrame(animationId);
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      video.style.display = "none";
+      scanBtn.textContent = "Scan QR";
     }
 
-    // QR Upload
-    document.getElementById("uploadBtn").addEventListener("click", () => {
-      document.getElementById("uploadQR").click();
+    function tick() {
+      if (!scanning) return;
+      if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
+        if (code) {
+          document.getElementById("searchBox").value = code.data;
+          document.getElementById("searchField").value = "CONTROL NO";
+          runSearch();
+          stopScanner();
+        }
+      }
+      animationId = requestAnimationFrame(tick);
+    }
+
+    scanBtn.addEventListener("click", () => {
+      if (scanning) stopScanner(); else startScanner();
     });
 
-    document.getElementById("uploadQR").addEventListener("change", function(e) {
+    // QR Upload
+    document.getElementById("uploadBtn").addEventListener("click", () => document.getElementById("uploadQR").click());
+    document.getElementById("uploadQR").addEventListener("change", e => {
       const file = e.target.files[0];
       if (!file) return;
-
       const reader = new FileReader();
-      reader.onload = function() {
+      reader.onload = () => {
         const img = new Image();
-        img.onload = function() {
-          const canvas = document.createElement("canvas");
+        img.onload = () => {
           canvas.width = img.width;
           canvas.height = img.height;
-          const ctx = canvas.getContext("2d");
           ctx.drawImage(img, 0, 0);
           const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
           const code = jsQR(imageData.data, imageData.width, imageData.height);
@@ -403,24 +330,18 @@
             document.getElementById("searchBox").value = code.data;
             document.getElementById("searchField").value = "CONTROL NO";
             runSearch();
-          } else {
-            alert("No QR code found in the uploaded image.");
-          }
+          } else alert("No QR code found in image.");
         };
         img.src = reader.result;
       };
       reader.readAsDataURL(file);
     });
 
-    document.getElementById("scanBtn").addEventListener("click", startScanner);
     document.getElementById("searchBtn").addEventListener("click", runSearch);
     document.getElementById("clearBtn").addEventListener("click", clearSearch);
     document.getElementById("searchBox").addEventListener("input", runSearch);
-    document.getElementById("searchBox").addEventListener("keypress", e => {
-      if(e.key === "Enter") { e.preventDefault(); runSearch(); }
-    });
 
-    // Dark Mode
+    // Dark Mode (default = light)
     const darkModeBtn = document.getElementById("darkModeBtn");
     function setDarkMode(enabled) {
       if (enabled) {
@@ -436,13 +357,8 @@
       localStorage.setItem("darkMode", document.body.classList.contains("dark"));
     });
 
-    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    const savedDark = localStorage.getItem("darkMode");
-    if (savedDark !== null) {
-      setDarkMode(savedDark === "true");
-    } else {
-      setDarkMode(prefersDark);
-    }
+    // start always in light mode
+    setDarkMode(false);
 
     loadData();
   </script>
