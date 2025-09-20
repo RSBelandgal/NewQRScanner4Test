@@ -1,0 +1,199 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>QR Scanner (mobile-friendly)</title>
+  <style>
+    body { font-family: Arial, Helvetica, sans-serif; margin: 0; padding: 16px; display:flex; flex-direction:column; gap:12px; align-items:center; background:#f7f7f7; color:#111; }
+    #container { width:100%; max-width:720px; display:flex; flex-direction:column; gap:10px; align-items:center; }
+    video { width:100%; height:auto; background:#000; border-radius:8px; }
+    canvas { display:none; }
+    .controls { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; }
+    button { padding:10px 14px; font-size:16px; border-radius:6px; border:1px solid #ccc; background:#fff; cursor:pointer; }
+    button.primary { background:#0b84ff; color:#fff; border-color:#0b84ff; }
+    #log { width:100%; min-height:48px; background:#fff; border-radius:6px; padding:8px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); overflow:auto; font-size:14px; }
+    #result { font-weight:600; color:#0b6d12; word-break:break-word; }
+    .error { color:#b00020; }
+  </style>
+</head>
+<body>
+  <div id="container">
+    <h2>QR Scanner — Mobile & Desktop</h2>
+    <video id="video" playsinline autoplay muted></video>
+    <canvas id="canvas"></canvas>
+
+    <div class="controls">
+      <button id="startBtn" class="primary">Start Camera</button>
+      <button id="stopBtn">Stop Camera</button>
+      <button id="flipBtn">Flip Camera</button>
+      <button id="toggleTorchBtn">Toggle Torch</button>
+    </div>
+
+    <div id="log"><div id="status">Idle. Click <strong>Start Camera</strong>.</div>
+      <div id="result"></div>
+    </div>
+
+    <div style="font-size:13px; color:#444; text-align:center; max-width:720px;">
+      If camera doesn't open: check browser permissions, ensure page is loaded over HTTPS (GitHub Pages is okay), and only one tab/app is using the camera.
+    </div>
+  </div>
+
+  <!-- jsQR (decode library) -->
+  <script src="https://unpkg.com/jsqr/dist/jsQR.js"></script>
+
+  <script>
+  (function(){
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const flipBtn = document.getElementById('flipBtn');
+    const toggleTorchBtn = document.getElementById('toggleTorchBtn');
+    const status = document.getElementById('status');
+    const resultEl = document.getElementById('result');
+
+    let stream = null;
+    let scanning = false;
+    let useFacingMode = 'environment'; // 'environment' or 'user'
+    let animationId = null;
+    let track = null;
+    let torchOn = false;
+
+    function log(text, isError=false){
+      status.innerHTML = text;
+      if(isError) status.classList.add('error'); else status.classList.remove('error');
+      console.log(text);
+    }
+
+    async function startCamera(){
+      if (stream) stopCamera();
+
+      try {
+        log('Requesting camera...');
+        const constraints = {
+          audio: false,
+          video: {
+            facingMode: { ideal: useFacingMode },
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          }
+        };
+
+        // Must be called from user gesture on some mobile browsers
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+        video.srcObject = stream;
+
+        // keep reference to video track
+        track = stream.getVideoTracks()[0];
+
+        // mobile - playsinline attribute already set on video tag above
+        await video.play();
+
+        // set canvas to video size
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 480;
+
+        scanning = true;
+        resultEl.textContent = '';
+        log('Camera started. Scanning for QR...');
+
+        tick();
+      } catch (err) {
+        log('Error opening camera: ' + (err && err.message ? err.message : err), true);
+        console.error(err);
+      }
+    }
+
+    function stopCamera(){
+      scanning = false;
+      if (animationId) { cancelAnimationFrame(animationId); animationId = null; }
+      if (stream) {
+        stream.getTracks().forEach(t => t.stop());
+        stream = null;
+        track = null;
+      }
+      video.pause();
+      video.srcObject = null;
+      log('Camera stopped.');
+    }
+
+    function tick(){
+      if (!scanning) return;
+      if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+        // jsQR decode
+        const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "attemptBoth" });
+        if (code) {
+          // draw bounding box for debugging
+          drawLine(code.location.topLeftCorner, code.location.topRightCorner);
+          drawLine(code.location.topRightCorner, code.location.bottomRightCorner);
+          drawLine(code.location.bottomRightCorner, code.location.bottomLeftCorner);
+          drawLine(code.location.bottomLeftCorner, code.location.topLeftCorner);
+
+          resultEl.textContent = 'QR: ' + code.data;
+          log('QR detected');
+          // Optionally stop after detection:
+          // scanning = false;
+          // stopCamera();
+        }
+      }
+      animationId = requestAnimationFrame(tick);
+    }
+
+    function drawLine(a,b){
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = 'red';
+      ctx.stroke();
+    }
+
+    async function flipCamera(){
+      useFacingMode = (useFacingMode === 'environment') ? 'user' : 'environment';
+      log('Switching camera to: ' + useFacingMode);
+      await startCamera();
+    }
+
+    async function toggleTorch(){
+      if (!track) {
+        log('No active camera track for torch control', true);
+        return;
+      }
+      const capabilities = track.getCapabilities ? track.getCapabilities() : {};
+      if (!capabilities.torch) {
+        log('Torch not supported on this device', true);
+        return;
+      }
+      try {
+        torchOn = !torchOn;
+        await track.applyConstraints({ advanced: [{ torch: torchOn }] });
+        log('Torch ' + (torchOn ? 'on' : 'off'));
+      } catch (err) {
+        log('Error toggling torch: ' + err.message, true);
+      }
+    }
+
+    // event handlers
+    startBtn.addEventListener('click', () => startCamera());
+    stopBtn.addEventListener('click', () => stopCamera());
+    flipBtn.addEventListener('click', () => flipCamera());
+    toggleTorchBtn.addEventListener('click', () => toggleTorch());
+
+    // Cleanup on unload
+    window.addEventListener('beforeunload', () => stopCamera());
+
+    // helpful UI hints if getUserMedia is not available
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      log('Camera API not supported. Use a modern browser (Chrome, Edge, Firefox, Safari).', true);
+    }
+  })();
+  </script>
+</body>
+</html>
