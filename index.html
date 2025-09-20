@@ -51,20 +51,19 @@
     #darkModeBtn { background: #333; margin-left: 5px; }
     body.dark #darkModeBtn { background: #666; color: #fff; }
 
-    /* Dual-ring spinner */
     .spinner {
-      display: inline-block;
+      border: 3px solid transparent;
+      border-top: 3px solid white;
+      border-radius: 50%;
       width: 16px;
       height: 16px;
-      border: 3px solid rgba(255,255,255,0.3);
-      border-radius: 50%;
-      border-top-color: white;
-      animation: spin 1s linear infinite;
       margin-left: 8px;
+      animation: spin 1s linear infinite;
     }
     .spinner.scan { border-top-color: #fff; }
     .spinner.upload { border-top-color: #fff; }
-    body.dark .spinner { border: 3px solid rgba(255,255,255,0.3); border-top-color: #fff; }
+    body.dark .spinner.scan { border-top-color: #fff; }
+    body.dark .spinner.upload { border-top-color: #fff; }
 
     @keyframes spin {
       0% { transform: rotate(0deg); }
@@ -99,7 +98,7 @@
     body.dark td { border-color: #555; }
     body.dark tr:hover { background-color: #444; }
 
-    /* Scanner popup overlay */
+    /* ✅ Scanner popup overlay */
     #scannerOverlay {
       position: fixed;
       top: 0; left: 0;
@@ -171,7 +170,7 @@
     <button id="darkModeBtn">🌙 Dark Mode</button>
   </div>
 
-  <!-- Scanner Popup -->
+  <!-- ✅ Scanner Popup -->
   <div id="scannerOverlay">
     <div id="scannerBox">
       <h3>Scan QR Code</h3>
@@ -227,12 +226,15 @@
     const uploadBtn = document.getElementById("uploadBtn");
 
     async function loadData() {
+      // Disable buttons & show spinner
       scanBtn.disabled = true;
       uploadBtn.disabled = true;
       scanBtn.innerHTML = 'Scan QR <span class="spinner scan"></span>';
       uploadBtn.innerHTML = 'Upload QR <span class="spinner upload"></span>';
+
       const statusDiv = document.getElementById("status");
       statusDiv.textContent = "Loading data…";
+
       try {
         const res = await fetch(apiURL);
         const rawData = await res.json();
@@ -249,6 +251,8 @@
       } catch(err) {
         statusDiv.textContent = "Failed to load data.";
       }
+
+      // Enable buttons & remove spinner
       scanBtn.disabled = false;
       uploadBtn.disabled = false;
       scanBtn.textContent = 'Scan QR';
@@ -274,11 +278,12 @@
       const counterDiv = document.getElementById("counter");
       resultsDiv.innerHTML = "";
       counterDiv.textContent = `Showing ${data.length} of ${totalRecords} record(s)`;
+
       if (data.length === 0) return;
       const table = document.createElement("table");
       const thead = document.createElement("thead");
       const headerRow = document.createElement("tr");
-      ["CONTROL NO", "APPLICANT NAME", "LOT/SURVEY NO", "CLASSIFICATIONID_F", "BARANGAYID_F"].forEach(h => {
+      ["CTRL NO", "APPLICANT", "LOT/SURVEY NO", "ZONE CLASS", "BARANGAY"].forEach(h => {
         const th = document.createElement("th");
         th.textContent = h;
         headerRow.appendChild(th);
@@ -312,9 +317,17 @@
       const query = document.getElementById("searchBox").value.trim().toLowerCase();
       const selectedField = document.getElementById("searchField").value;
       const validatedMsg = document.getElementById("validatedMsg");
-      if (!query) { clearResults(); clearFields(); validatedMsg.style.display = "none"; return; }
+
+      if (!query) {
+        clearResults();
+        clearFields();
+        validatedMsg.style.display = "none";
+        return;
+      }
+
       const filtered = sheetData.filter(row => row[selectedField] && String(row[selectedField]).trim().toLowerCase() === query);
       showResults(filtered);
+
       if (filtered.length > 0) {
         fillFields(filtered[0]);
         validatedMsg.textContent = "VALIDATED DATA!";
@@ -335,7 +348,7 @@
       document.getElementById("searchBox").focus();
     }
 
-    // QR Scanner
+    // QR Scanner with popup
     const video = document.getElementById("video");
     const canvas = document.getElementById("canvas");
     const ctx = canvas.getContext("2d");
@@ -343,16 +356,17 @@
 
     async function startScanner() {
       try {
-        // Faster camera open
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } } });
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
         video.srcObject = stream;
-        await video.play();
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        scanning = true;
+        video.play();
+        video.addEventListener("loadedmetadata", () => {
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          scanning = true;
+          tick();
+        });
         document.getElementById("scannerOverlay").style.display = "flex";
-        scanBtn.innerHTML = "Stop Scan <span class='spinner scan'></span>";
-        tick();
+        scanBtn.textContent = "Stop Scan";
       } catch (err) {
         alert("Camera error: " + err.message);
       }
@@ -382,7 +396,9 @@
       animationId = requestAnimationFrame(tick);
     }
 
-    scanBtn.addEventListener("click", () => { scanning ? stopScanner() : startScanner(); });
+    scanBtn.addEventListener("click", () => {
+      if (scanning) stopScanner(); else startScanner();
+    });
     document.getElementById("closeScanner").addEventListener("click", stopScanner);
 
     // QR Upload
@@ -425,5 +441,3 @@
   </script>
 </body>
 </html>
-
-
