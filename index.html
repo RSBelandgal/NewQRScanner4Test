@@ -1,199 +1,183 @@
-<!doctype html>
+a<!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>QR Scanner (mobile-friendly)</title>
+  <title>Google Sheet Search Viewer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    body { font-family: Arial, Helvetica, sans-serif; margin: 0; padding: 16px; display:flex; flex-direction:column; gap:12px; align-items:center; background:#f7f7f7; color:#111; }
-    #container { width:100%; max-width:720px; display:flex; flex-direction:column; gap:10px; align-items:center; }
-    video { width:100%; height:auto; background:#000; border-radius:8px; }
-    canvas { display:none; }
-    .controls { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; }
-    button { padding:10px 14px; font-size:16px; border-radius:6px; border:1px solid #ccc; background:#fff; cursor:pointer; }
-    button.primary { background:#0b84ff; color:#fff; border-color:#0b84ff; }
-    #log { width:100%; min-height:48px; background:#fff; border-radius:6px; padding:8px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); overflow:auto; font-size:14px; }
-    #result { font-weight:600; color:#0b6d12; word-break:break-word; }
-    .error { color:#b00020; }
+    body { font-family: Arial, sans-serif; max-width: 1000px; margin: 40px auto; position: relative;
+           background: #ffffff; color: #000000; transition: background 0.3s, color 0.3s; padding: 10px; }
+    body.dark { background: #121212; color: #f1f1f1; }
+    #topHeader { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; flex-wrap: wrap; }
+    #developer { font-size: 14px; color: #555; }
+    body.dark #developer { color: #ccc; }
+    #sheetInfo { text-align: right; font-size: 14px; color: #555; }
+    body.dark #sheetInfo { color: #bbb; }
+    #sheetInfo #status { margin-top: 4px; font-weight: bold; color: green; }
+    body.dark #sheetInfo #status { color: #80e080; }
+    #searchBox { padding: 8px; width: 50%; margin-right: 10px; margin-bottom:10px; min-width: 120px; }
+    #searchField { padding: 8px; width: 180px; margin-right: 10px; margin-bottom:10px; min-width: 120px; }
+    #searchBtn, #clearBtn, #scanBtn, #uploadBtn, #darkModeBtn { 
+      padding: 9px 15px; border: none; color: white; cursor: pointer; margin-bottom:10px; border-radius: 5px;
+      transition: background 0.3s, color 0.3s; white-space: nowrap;
+    }
+    #searchBtn { background: #4285F4; margin-right: 5px; }
+    #clearBtn { background: #f44336; margin-right: 5px; }
+    #scanBtn { background: #4CAF50; margin-right: 5px; }
+    #uploadBtn { background: #FF9800; }
+    #darkModeBtn { background: #333; margin-left: 5px; }
+    body.dark #darkModeBtn { background: #666; color: #fff; }
+    #scanUploadWrap { display: flex; justify-content: flex-start; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+    #validatedMsg { font-weight: bold; display: none; font-size: 25px; text-align:center; }
+    #fields { margin-top: 20px; padding: 15px; background: #f5f5f5; border-radius: 8px; border: 1px solid #ddd; }
+    body.dark #fields { background: #1e1e1e; border-color: #444; }
+    .field { display: flex; margin-bottom: 6px; flex-wrap: wrap; }
+    .field-name { font-weight: bold; min-width: 200px; color: #333; white-space: nowrap; }
+    body.dark .field-name { color: #ddd; }
+    .field-value { flex: 1; color: #555; word-wrap: break-word; }
+    body.dark .field-value { color: #ccc; }
+    #counter { margin-top: 10px; font-weight: bold; color: #444; }
+    body.dark #counter { color: #ccc; }
+    #results { margin-top: 10px; border-collapse: collapse; width: 100%; overflow-x:auto; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #ddd; padding: 8px; vertical-align: top; }
+    th { background-color: #4285F4; color: white; }
+    tr:hover { background-color: #e8f0fe; cursor: pointer; }
+    body.dark th { background-color: #333; border-color: #555; }
+    body.dark td { border-color: #555; }
+    body.dark tr:hover { background-color: #444; }
+    #reader { width: 100%; max-width: 400px; margin: 15px auto; display: none; }
+    @media screen and (max-width: 768px) {
+      body { padding: 5px; }
+      #searchBox, #searchField { width: auto; max-width: 100%; }
+      #searchBtn, #clearBtn, #scanBtn, #uploadBtn, #darkModeBtn { font-size: 14px; padding: 7px 12px; }
+      #fields { padding: 10px; }
+      #reader { max-width: 100%; }
+      #topHeader { flex-direction: column; align-items: flex-start; gap: 5px; }
+      #sheetInfo { text-align: left; margin-top: 5px; }
+    }
   </style>
 </head>
 <body>
-  <div id="container">
-    <h2>QR Scanner — Mobile & Desktop</h2>
-    <video id="video" playsinline autoplay muted></video>
-    <canvas id="canvas"></canvas>
-
-    <div class="controls">
-      <button id="startBtn" class="primary">Start Camera</button>
-      <button id="stopBtn">Stop Camera</button>
-      <button id="flipBtn">Flip Camera</button>
-      <button id="toggleTorchBtn">Toggle Torch</button>
-    </div>
-
-    <div id="log"><div id="status">Idle. Click <strong>Start Camera</strong>.</div>
-      <div id="result"></div>
-    </div>
-
-    <div style="font-size:13px; color:#444; text-align:center; max-width:720px;">
-      If camera doesn't open: check browser permissions, ensure page is loaded over HTTPS (GitHub Pages is okay), and only one tab/app is using the camera.
+  <div id="topHeader">
+    <div id="developer">Developer: Rodney Belangdal</div>
+    <div id="sheetInfo">
+      <div id="totalRecords">Total Records: 0</div>
+      <div id="sheetName">&nbsp;</div>
+      <div id="status">Loading data…</div>
     </div>
   </div>
 
-  <!-- jsQR (decode library) -->
-  <script src="https://unpkg.com/jsqr/dist/jsQR.js"></script>
+  <h2>LUZAD ZONING CERTIFICATION VERIFICATION @ CPDO2025</h2>
+  <select id="searchField"></select>
+  <input type="text" id="searchBox" placeholder="Search..." />
+  <button id="searchBtn">Search</button>
+  <button id="clearBtn">Clear</button>
+
+  <div id="scanUploadWrap">
+    <button id="scanBtn">Scan QR</button>
+    <button id="uploadBtn">Upload QR</button>
+    <button id="darkModeBtn">🌙 Dark Mode</button>
+  </div>
+  <div id="validatedMsg">VALIDATED DATA!</div>
+
+  <input type="file" id="uploadQR" accept="image/*" style="display:none;">
+  <div id="reader"></div>
+
+  <div id="fields">
+    <div class="field"><span class="field-name">CONTROL NO :</span><span class="field-value" id="CONTROL NO">&nbsp;</span></div>
+    <div class="field"><span class="field-name">APPLICANT NAME :</span><span class="field-value" id="APPLICANT NAME">&nbsp;</span></div>
+    <div class="field"><span class="field-name">LOT/SURVEY NO :</span><span class="field-value" id="LOT/SURVEY NO">&nbsp;</span></div>
+    <div class="field"><span class="field-name">BARANGAY :</span><span class="field-value" id="BARANGAYID_F">&nbsp;</span></div>
+    <div class="field"><span class="field-name">ZONE CLASS :</span><span class="field-value" id="CLASSIFICATIONID_F">&nbsp;</span></div>
+  </div>
+
+  <div id="counter"></div>
+  <div id="results"></div>
+
+  <!-- Libraries -->
+  <script src="https://unpkg.com/html5-qrcode/minified/html5-qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 
   <script>
-  (function(){
-    const video = document.getElementById('video');
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
-    const startBtn = document.getElementById('startBtn');
-    const stopBtn = document.getElementById('stopBtn');
-    const flipBtn = document.getElementById('flipBtn');
-    const toggleTorchBtn = document.getElementById('toggleTorchBtn');
-    const status = document.getElementById('status');
-    const resultEl = document.getElementById('result');
+    const apiURL = "https://script.google.com/macros/s/AKfycbzl2hyJ6R807HCLGRZXPgniqPhuHpxJpSIEzy3cXE-W9Otnr6RUGh5L9TxB7OMgns3i/exec";
+    let sheetData = [];
+    let html5QrCode;
 
-    let stream = null;
-    let scanning = false;
-    let useFacingMode = 'environment'; // 'environment' or 'user'
-    let animationId = null;
-    let track = null;
-    let torchOn = false;
+    const FIELDS_TO_SHOW = ["CONTROL NO","APPLICANT NAME","LOT/SURVEY NO","BARANGAYID_F","CLASSIFICATIONID_F"];
+    const SEARCHABLE_FIELDS = ["CONTROL NO","PIN","NEW PIN","APPLICANT NAME","LOT/SURVEY NO"];
 
-    function log(text, isError=false){
-      status.innerHTML = text;
-      if(isError) status.classList.add('error'); else status.classList.remove('error');
-      console.log(text);
-    }
+    const dropdown = document.getElementById("searchField");
+    SEARCHABLE_FIELDS.forEach(f => {
+      const opt = document.createElement("option"); opt.value = f; opt.textContent = f; dropdown.appendChild(opt);
+    });
 
-    async function startCamera(){
-      if (stream) stopCamera();
-
+    async function loadData() {
+      const statusDiv = document.getElementById("status");
       try {
-        log('Requesting camera...');
-        const constraints = {
-          audio: false,
-          video: {
-            facingMode: { ideal: useFacingMode },
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          }
-        };
-
-        // Must be called from user gesture on some mobile browsers
-        stream = await navigator.mediaDevices.getUserMedia(constraints);
-        video.srcObject = stream;
-
-        // keep reference to video track
-        track = stream.getVideoTracks()[0];
-
-        // mobile - playsinline attribute already set on video tag above
-        await video.play();
-
-        // set canvas to video size
-        canvas.width = video.videoWidth || 640;
-        canvas.height = video.videoHeight || 480;
-
-        scanning = true;
-        resultEl.textContent = '';
-        log('Camera started. Scanning for QR...');
-
-        tick();
-      } catch (err) {
-        log('Error opening camera: ' + (err && err.message ? err.message : err), true);
-        console.error(err);
-      }
+        const res = await fetch(apiURL); const rawData = await res.json();
+        const headers = rawData.data[0];
+        sheetData = rawData.data.slice(1).map(r => Object.fromEntries(headers.map((h,i)=>[h,r[i]])));
+        document.getElementById("totalRecords").textContent = `Total Records: ${sheetData.length}`;
+        document.getElementById("sheetName").textContent = rawData.spreadsheetName || "Unknown";
+        statusDiv.textContent = "Data loaded.";
+      } catch(e) { statusDiv.textContent = "Failed to load data."; console.error(e); }
     }
 
-    function stopCamera(){
-      scanning = false;
-      if (animationId) { cancelAnimationFrame(animationId); animationId = null; }
-      if (stream) {
-        stream.getTracks().forEach(t => t.stop());
-        stream = null;
-        track = null;
-      }
-      video.pause();
-      video.srcObject = null;
-      log('Camera stopped.');
+    function fillFields(row) {
+      FIELDS_TO_SHOW.forEach(f => {
+        const el = document.getElementById(f); if (el) el.textContent = row[f] || "";
+      });
     }
 
-    function tick(){
-      if (!scanning) return;
-      if (video.readyState === video.HAVE_ENOUGH_DATA) {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-
-        // jsQR decode
-        const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "attemptBoth" });
-        if (code) {
-          // draw bounding box for debugging
-          drawLine(code.location.topLeftCorner, code.location.topRightCorner);
-          drawLine(code.location.topRightCorner, code.location.bottomRightCorner);
-          drawLine(code.location.bottomRightCorner, code.location.bottomLeftCorner);
-          drawLine(code.location.bottomLeftCorner, code.location.topLeftCorner);
-
-          resultEl.textContent = 'QR: ' + code.data;
-          log('QR detected');
-          // Optionally stop after detection:
-          // scanning = false;
-          // stopCamera();
-        }
-      }
-      animationId = requestAnimationFrame(tick);
+    function runSearch() {
+      const q = document.getElementById("searchBox").value.trim().toLowerCase();
+      const field = document.getElementById("searchField").value;
+      const msg = document.getElementById("validatedMsg");
+      if (!q) { msg.style.display="none"; return; }
+      const results = sheetData.filter(r => r[field] && String(r[field]).toLowerCase()===q);
+      if (results.length>0) { fillFields(results[0]); msg.textContent="VALIDATED DATA!"; msg.style.color="green"; msg.style.display="block"; }
+      else { msg.textContent="NO RECORD FOUND!"; msg.style.color="red"; msg.style.display="block"; }
     }
 
-    function drawLine(a,b){
-      ctx.beginPath();
-      ctx.moveTo(a.x, a.y);
-      ctx.lineTo(b.x, b.y);
-      ctx.lineWidth = 4;
-      ctx.strokeStyle = 'red';
-      ctx.stroke();
+    function clearSearch() {
+      document.getElementById("searchBox").value=""; document.getElementById("validatedMsg").style.display="none";
     }
 
-    async function flipCamera(){
-      useFacingMode = (useFacingMode === 'environment') ? 'user' : 'environment';
-      log('Switching camera to: ' + useFacingMode);
-      await startCamera();
+    // Live scanner
+    function startScanner() {
+      document.getElementById("reader").style.display="block";
+      html5QrCode = new Html5Qrcode("reader");
+      html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 },
+        (decodedText) => { document.getElementById("searchBox").value=decodedText; document.getElementById("searchField").value="CONTROL NO"; runSearch(); stopScanner(); }
+      ).catch(err=>console.error("Scan error",err));
     }
+    function stopScanner() { if(html5QrCode) html5QrCode.stop().then(()=>{document.getElementById("reader").style.display="none";}); }
 
-    async function toggleTorch(){
-      if (!track) {
-        log('No active camera track for torch control', true);
-        return;
-      }
-      const capabilities = track.getCapabilities ? track.getCapabilities() : {};
-      if (!capabilities.torch) {
-        log('Torch not supported on this device', true);
-        return;
-      }
-      try {
-        torchOn = !torchOn;
-        await track.applyConstraints({ advanced: [{ torch: torchOn }] });
-        log('Torch ' + (torchOn ? 'on' : 'off'));
-      } catch (err) {
-        log('Error toggling torch: ' + err.message, true);
-      }
-    }
+    // File upload scan
+    document.getElementById("uploadBtn").onclick = ()=>document.getElementById("uploadQR").click();
+    document.getElementById("uploadQR").onchange = e=>{
+      const file=e.target.files[0]; if(!file) return;
+      const reader=new FileReader();
+      reader.onload=()=>{ const img=new Image(); img.onload=()=>{
+        const c=document.createElement("canvas"); c.width=img.width;c.height=img.height; const ctx=c.getContext("2d"); ctx.drawImage(img,0,0);
+        const code=jsQR(ctx.getImageData(0,0,c.width,c.height).data,c.width,c.height);
+        if(code){ document.getElementById("searchBox").value=code.data; document.getElementById("searchField").value="CONTROL NO"; runSearch();}
+        else alert("No QR found.");
+      }; img.src=reader.result; }; reader.readAsDataURL(file);
+    };
 
-    // event handlers
-    startBtn.addEventListener('click', () => startCamera());
-    stopBtn.addEventListener('click', () => stopCamera());
-    flipBtn.addEventListener('click', () => flipCamera());
-    toggleTorchBtn.addEventListener('click', () => toggleTorch());
+    document.getElementById("scanBtn").onclick=startScanner;
+    document.getElementById("searchBtn").onclick=runSearch;
+    document.getElementById("clearBtn").onclick=clearSearch;
+    document.getElementById("searchBox").oninput=runSearch;
 
-    // Cleanup on unload
-    window.addEventListener('beforeunload', () => stopCamera());
+    // Dark mode
+    const darkBtn=document.getElementById("darkModeBtn");
+    function setDark(on){document.body.classList.toggle("dark",on);darkBtn.textContent=on?"☀️ Light Mode":"🌙 Dark Mode";}
+    darkBtn.onclick=()=>{const on=!document.body.classList.contains("dark");setDark(on);localStorage.setItem("darkMode",on);};
+    setDark(localStorage.getItem("darkMode")==="true");
 
-    // helpful UI hints if getUserMedia is not available
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      log('Camera API not supported. Use a modern browser (Chrome, Edge, Firefox, Safari).', true);
-    }
-  })();
+    loadData();
   </script>
 </body>
 </html>
