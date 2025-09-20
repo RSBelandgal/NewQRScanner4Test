@@ -31,7 +31,7 @@
 
     #searchBox { padding: 8px; width: 50%; margin-right: 10px; margin-bottom:10px; min-width: 120px; }
     #searchField { padding: 8px; width: 180px; margin-right: 10px; margin-bottom:10px; min-width: 120px; }
-    #searchBtn, #clearBtn, #scanBtn, #stopBtn, #uploadBtn, #darkModeBtn { 
+    #searchBtn, #clearBtn, #scanBtn, #uploadBtn, #darkModeBtn { 
       padding: 9px 15px; border: none; color: white; cursor: pointer; margin-bottom:10px; border-radius: 5px;
       transition: background 0.3s, color 0.3s;
       position: relative;
@@ -43,7 +43,6 @@
     #clearBtn:hover { background: #d32f2f; }
     #scanBtn { background: #4CAF50; margin-right: 5px; }
     #scanBtn:hover { background: #45a049; }
-    #stopBtn { background: #888; margin-right: 5px; }
     #uploadBtn { background: #FF9800; }
     #uploadBtn:hover { background: #e68900; }
     #darkModeBtn { background: #333; margin-left: 5px; }
@@ -52,23 +51,6 @@
     /* Scanner video */
     #video { width: 100%; max-width: 400px; display: none; margin-top: 10px; }
     #canvas { display: none; }
-
-    /* Spinner */
-    .spinner {
-      border: 2px solid #f3f3f3; 
-      border-top: 2px solid #fff; 
-      border-radius: 50%;
-      width: 14px;
-      height: 14px;
-      animation: spin 1s linear infinite;
-      display: inline-block;
-      vertical-align: middle;
-      margin-left: 5px;
-    }
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
 
     #validatedMsg { 
       font-weight: bold; 
@@ -117,7 +99,6 @@
 
   <div>
     <button id="scanBtn">Scan QR</button>
-    <button id="stopBtn">Stop Scan</button>
     <button id="uploadBtn">Upload QR</button>
     <button id="darkModeBtn">🌙 Dark Mode</button>
   </div>
@@ -273,10 +254,11 @@
       document.getElementById("searchBox").focus();
     }
 
-    // ✅ QR Scanner with jsQR
+    // ✅ QR Scanner with toggle button
     const video = document.getElementById("video");
     const canvas = document.getElementById("canvas");
     const ctx = canvas.getContext("2d");
+    const scanBtn = document.getElementById("scanBtn");
     let scanning = false, stream = null, animationId = null;
 
     async function startScanner() {
@@ -291,6 +273,7 @@
           scanning = true;
           tick();
         });
+        scanBtn.textContent = "Stop Scan";
       } catch (err) {
         alert("Camera error: " + err.message);
       }
@@ -301,6 +284,7 @@
       if (animationId) cancelAnimationFrame(animationId);
       if (stream) stream.getTracks().forEach(t => t.stop());
       video.style.display = "none";
+      scanBtn.textContent = "Scan QR";
     }
 
     function tick() {
@@ -318,6 +302,10 @@
       }
       animationId = requestAnimationFrame(tick);
     }
+
+    scanBtn.addEventListener("click", () => {
+      if (scanning) stopScanner(); else startScanner();
+    });
 
     // QR Upload
     document.getElementById("uploadBtn").addEventListener("click", () => document.getElementById("uploadQR").click());
@@ -344,13 +332,11 @@
       reader.readAsDataURL(file);
     });
 
-    document.getElementById("scanBtn").addEventListener("click", startScanner);
-    document.getElementById("stopBtn").addEventListener("click", stopScanner);
     document.getElementById("searchBtn").addEventListener("click", runSearch);
     document.getElementById("clearBtn").addEventListener("click", clearSearch);
     document.getElementById("searchBox").addEventListener("input", runSearch);
 
-    // Dark Mode
+    // Dark Mode (default = light)
     const darkModeBtn = document.getElementById("darkModeBtn");
     function setDarkMode(enabled) {
       if (enabled) {
@@ -366,7 +352,8 @@
       localStorage.setItem("darkMode", document.body.classList.contains("dark"));
     });
 
-    setDarkMode(localStorage.getItem("darkMode") === "true" || window.matchMedia("(prefers-color-scheme: dark)").matches);
+    // start always in light mode
+    setDarkMode(false);
 
     loadData();
   </script>
