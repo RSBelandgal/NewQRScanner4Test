@@ -259,10 +259,24 @@
       uploadBtn.textContent = 'Upload QR';
     }
 
+    // ✅ New function for long date formatting
+    function formatLongDate(dateStr) {
+      if (!dateStr) return "\u00A0";
+      const d = new Date(dateStr);
+      if (isNaN(d)) return dateStr;
+      return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: '2-digit' });
+    }
+
     function fillFields(row) {
       FIELDS_TO_SHOW.forEach(field => {
         const el = document.getElementById(field);
-        if (el) el.textContent = row[field] || "\u00A0";
+        if (el) {
+          if (field === "DATE RECEIPT" || field === "RELEASED_D") {
+            el.textContent = formatLongDate(row[field]);
+          } else {
+            el.textContent = row[field] || "\u00A0";
+          }
+        }
       });
     }
 
