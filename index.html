@@ -98,7 +98,7 @@
     body.dark td { border-color: #555; }
     body.dark tr:hover { background-color: #444; }
 
-    /* ✅ Scanner popup overlay */
+    /* Scanner popup overlay */
     #scannerOverlay {
       position: fixed;
       top: 0; left: 0;
@@ -143,9 +143,7 @@
       border-radius: 8px;
       cursor: pointer;
     }
-    #closeScanner:hover {
-      background: #d32f2f;
-    }
+    #closeScanner:hover { background: #d32f2f; }
   </style>
 </head>
 <body>
@@ -170,7 +168,6 @@
     <button id="darkModeBtn">🌙 Dark Mode</button>
   </div>
 
-  <!-- ✅ Scanner Popup -->
   <div id="scannerOverlay">
     <div id="scannerBox">
       <h3>Scan QR Code</h3>
@@ -203,7 +200,6 @@
   <div id="counter"></div>
   <div id="results"></div>
 
-  <!-- jsQR -->
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 
   <script>
@@ -225,8 +221,15 @@
     const scanBtn = document.getElementById("scanBtn");
     const uploadBtn = document.getElementById("uploadBtn");
 
+    function formatLongDate(value) {
+      if (!value) return "\u00A0";
+      const date = new Date(value);
+      if (isNaN(date)) return value;
+      const options = { year: 'numeric', month: 'long', day: '2-digit' };
+      return date.toLocaleDateString('en-US', options);
+    }
+
     async function loadData() {
-      // Disable buttons & show spinner
       scanBtn.disabled = true;
       uploadBtn.disabled = true;
       scanBtn.innerHTML = 'Scan QR <span class="spinner scan"></span>';
@@ -252,31 +255,21 @@
         statusDiv.textContent = "Failed to load data.";
       }
 
-      // Enable buttons & remove spinner
       scanBtn.disabled = false;
       uploadBtn.disabled = false;
       scanBtn.textContent = 'Scan QR';
       uploadBtn.textContent = 'Upload QR';
     }
 
-    // ✅ New function for long date formatting
-    function formatLongDate(dateStr) {
-      if (!dateStr) return "\u00A0";
-      const d = new Date(dateStr);
-      if (isNaN(d)) return dateStr;
-      return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: '2-digit' });
-    }
-
     function fillFields(row) {
       FIELDS_TO_SHOW.forEach(field => {
         const el = document.getElementById(field);
-        if (el) {
-          if (field === "DATE RECEIPT" || field === "RELEASED_D") {
-            el.textContent = formatLongDate(row[field]);
-          } else {
-            el.textContent = row[field] || "\u00A0";
-          }
+        if (!el) return;
+        let value = row[field] || "\u00A0";
+        if (field === "DATE RECEIPT" || field === "RELEASED_D" || field === "OR DATE") {
+          value = formatLongDate(value);
         }
+        el.textContent = value;
       });
     }
 
@@ -293,7 +286,8 @@
       resultsDiv.innerHTML = "";
       counterDiv.textContent = `Showing ${data.length} of ${totalRecords} record(s)`;
 
-      if (data.length === 0) return;
+      if (!data.length) return;
+
       const table = document.createElement("table");
       const thead = document.createElement("thead");
       const headerRow = document.createElement("tr");
@@ -327,7 +321,7 @@
     }
 
     function runSearch() {
-      if (sheetData.length === 0) return;
+      if (!sheetData.length) return;
       const query = document.getElementById("searchBox").value.trim().toLowerCase();
       const selectedField = document.getElementById("searchField").value;
       const validatedMsg = document.getElementById("validatedMsg");
@@ -362,7 +356,15 @@
       document.getElementById("searchBox").focus();
     }
 
-    // QR Scanner with popup
+    // Auto search as you type
+    document.getElementById("searchBox").addEventListener("input", runSearch);
+
+    document.getElementById("searchBtn").addEventListener("click", runSearch);
+    document.getElementById("clearBtn").addEventListener("click", clearSearch);
+
+    document.getElementById("darkModeBtn").addEventListener("click", () => document.body.classList.toggle("dark"));
+
+    // QR Scanner
     const video = document.getElementById("video");
     const canvas = document.getElementById("canvas");
     const ctx = canvas.getContext("2d");
@@ -410,12 +412,9 @@
       animationId = requestAnimationFrame(tick);
     }
 
-    scanBtn.addEventListener("click", () => {
-      if (scanning) stopScanner(); else startScanner();
-    });
+    scanBtn.addEventListener("click", () => { if (scanning) stopScanner(); else startScanner(); });
     document.getElementById("closeScanner").addEventListener("click", stopScanner);
 
-    // QR Upload
     document.getElementById("uploadBtn").addEventListener("click", () => document.getElementById("uploadQR").click());
     document.getElementById("uploadQR").addEventListener("change", e => {
       const file = e.target.files[0];
@@ -441,15 +440,6 @@
       };
       reader.readAsDataURL(file);
     });
-
-    // Search events
-    document.getElementById("searchBtn").addEventListener("click", runSearch);
-    document.getElementById("clearBtn").addEventListener("click", clearSearch);
-    document.getElementById("searchBox").addEventListener("keypress", e => { if (e.key === "Enter") runSearch(); });
-    document.getElementById("searchBox").addEventListener("input", runSearch);
-
-    // Dark mode
-    document.getElementById("darkModeBtn").addEventListener("click", () => document.body.classList.toggle("dark"));
 
     loadData();
   </script>
