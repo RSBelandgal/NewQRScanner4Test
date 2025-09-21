@@ -4,6 +4,7 @@
   <title>ZCQRScanner</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
+    /* === same styles as original === */
     body { 
       font-family: Arial, sans-serif; 
       max-width: 1000px; 
@@ -31,7 +32,7 @@
 
     #searchBox { padding: 8px; width: 50%; margin-right: 10px; margin-bottom:10px; min-width: 120px; }
     #searchField { padding: 8px; width: 180px; margin-right: 10px; margin-bottom:10px; min-width: 120px; }
-    #searchBtn, #clearBtn, #scanBtn, #uploadBtn, #darkModeBtn { 
+    #searchBtn, #clearBtn, #scanBtn, #uploadBtn, #darkModeBtn, #grantAccessBtn { 
       padding: 9px 15px; border: none; color: white; cursor: pointer; margin-bottom:10px; border-radius: 5px;
       transition: background 0.3s, color 0.3s;
       position: relative;
@@ -50,6 +51,8 @@
     #uploadBtn:hover { background: #e68900; }
     #darkModeBtn { background: #333; margin-left: 5px; }
     body.dark #darkModeBtn { background: #666; color: #fff; }
+    #grantAccessBtn { background: #0066cc; margin-right:5px; }
+    #grantAccessBtn:hover { background: #0055aa; }
 
     .spinner {
       border: 3px solid transparent;
@@ -143,9 +146,7 @@
       border-radius: 8px;
       cursor: pointer;
     }
-    #closeScanner:hover {
-      background: #d32f2f;
-    }
+    #closeScanner:hover { background: #d32f2f; }
   </style>
 </head>
 <body>
@@ -165,6 +166,7 @@
   <button id="clearBtn">Clear</button>
 
   <div>
+    <button id="grantAccessBtn">Grant Camera Access</button>
     <button id="scanBtn">Scan QR</button>
     <button id="uploadBtn">Upload QR</button>
     <button id="darkModeBtn">🌙 Dark Mode</button>
@@ -184,6 +186,7 @@
   <input type="file" id="uploadQR" accept="image/*" style="display:none;">
 
   <div id="fields">
+    <!-- same fields as original -->
     <div class="field"><span class="field-name">DATE RECEIPT :</span><span class="field-value" id="DATE RECEIPT">&nbsp;</span></div>
     <div class="field"><span class="field-name">RELEASED DATE :</span><span class="field-value" id="RELEASED_D">&nbsp;</span></div>
     <div class="field"><span class="field-name">CONTROL NO :</span><span class="field-value" id="CONTROL NO">&nbsp;</span></div>
@@ -207,13 +210,12 @@
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 
   <script>
+    // === same JS as original ===
     const apiURL = "https://script.google.com/macros/s/AKfycbzl2hyJ6R807HCLGRZXPgniqPhuHpxJpSIEzy3cXE-W9Otnr6RUGh5L9TxB7OMgns3i/exec";
     let sheetData = [];
     let totalRecords = 0;
-
     const FIELDS_TO_SHOW = [ "DATE RECEIPT", "RELEASED_D", "CONTROL NO", "PIN", "NEW PIN", "APPLICANT NAME", "LOT/SURVEY NO", "LOT/SURVEY NO", "LAND AREA", "BARANGAYID_F", "CLASSIFICATIONID_F", "PLUSCODES", "OR NO", "OR DATE", "REMARKS" ];
     const SEARCHABLE_FIELDS = [ "CONTROL NO", "PIN", "NEW PIN", "APPLICANT NAME", "LOT/SURVEY NO" ];
-
     const dropdown = document.getElementById("searchField");
     SEARCHABLE_FIELDS.forEach(field => {
       const option = document.createElement("option");
@@ -226,12 +228,10 @@
     const uploadBtn = document.getElementById("uploadBtn");
 
     async function loadData() {
-      // Disable buttons & show spinner
       scanBtn.disabled = true;
       uploadBtn.disabled = true;
       scanBtn.innerHTML = 'Scan QR <span class="spinner scan"></span>';
       uploadBtn.innerHTML = 'Upload QR <span class="spinner upload"></span>';
-
       const statusDiv = document.getElementById("status");
       statusDiv.textContent = "Loading data…";
 
@@ -252,7 +252,6 @@
         statusDiv.textContent = "Failed to load data.";
       }
 
-      // Enable buttons & remove spinner
       scanBtn.disabled = false;
       uploadBtn.disabled = false;
       scanBtn.textContent = 'Scan QR';
@@ -265,20 +264,17 @@
         if (el) el.textContent = row[field] || "\u00A0";
       });
     }
-
     function clearFields() {
       FIELDS_TO_SHOW.forEach(field => {
         const el = document.getElementById(field);
         if (el) el.textContent = "\u00A0";
       });
     }
-
     function showResults(data) {
       const resultsDiv = document.getElementById("results");
       const counterDiv = document.getElementById("counter");
       resultsDiv.innerHTML = "";
       counterDiv.textContent = `Showing ${data.length} of ${totalRecords} record(s)`;
-
       if (data.length === 0) return;
       const table = document.createElement("table");
       const thead = document.createElement("thead");
@@ -305,7 +301,6 @@
       table.appendChild(tbody);
       resultsDiv.appendChild(table);
     }
-
     function clearResults() {
       document.getElementById("results").innerHTML = "";
       document.getElementById("counter").textContent = "";
@@ -348,7 +343,7 @@
       document.getElementById("searchBox").focus();
     }
 
-    // QR Scanner with popup
+    // QR Scanner
     const video = document.getElementById("video");
     const canvas = document.getElementById("canvas");
     const ctx = canvas.getContext("2d");
@@ -400,6 +395,16 @@
       if (scanning) stopScanner(); else startScanner();
     });
     document.getElementById("closeScanner").addEventListener("click", stopScanner);
+
+    // Grant camera access button
+    document.getElementById("grantAccessBtn").addEventListener("click", async () => {
+      try {
+        await navigator.mediaDevices.getUserMedia({ video: true });
+        alert("Camera access granted! You can now click Scan QR.");
+      } catch(err) {
+        alert("Camera access denied: " + err.message);
+      }
+    });
 
     // QR Upload
     document.getElementById("uploadBtn").addEventListener("click", () => document.getElementById("uploadQR").click());
