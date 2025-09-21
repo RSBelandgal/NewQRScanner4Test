@@ -31,7 +31,7 @@
 
     #searchBox { padding: 8px; width: 50%; margin-right: 10px; margin-bottom:10px; min-width: 120px; }
     #searchField { padding: 8px; width: 180px; margin-right: 10px; margin-bottom:10px; min-width: 120px; }
-    #searchBtn, #clearBtn, #scanBtn, #uploadBtn, #darkModeBtn { 
+    #searchBtn, #clearBtn, #scanBtn, #uploadBtn, #darkModeBtn, #grantCameraBtn { 
       padding: 9px 15px; border: none; color: white; cursor: pointer; margin-bottom:10px; border-radius: 5px;
       transition: background 0.3s, color 0.3s;
       position: relative;
@@ -50,6 +50,7 @@
     #uploadBtn:hover { background: #e68900; }
     #darkModeBtn { background: #333; margin-left: 5px; }
     body.dark #darkModeBtn { background: #666; color: #fff; }
+    #grantCameraBtn { background: #4CAF50; margin-right: 5px; }
 
     .spinner {
       border: 3px solid transparent;
@@ -98,7 +99,7 @@
     body.dark td { border-color: #555; }
     body.dark tr:hover { background-color: #444; }
 
-    /* ✅ Scanner popup overlay */
+    /* Scanner popup overlay */
     #scannerOverlay {
       position: fixed;
       top: 0; left: 0;
@@ -143,9 +144,7 @@
       border-radius: 8px;
       cursor: pointer;
     }
-    #closeScanner:hover {
-      background: #d32f2f;
-    }
+    #closeScanner:hover { background: #d32f2f; }
   </style>
 </head>
 <body>
@@ -167,10 +166,11 @@
   <div>
     <button id="scanBtn">Scan QR</button>
     <button id="uploadBtn">Upload QR</button>
+    <button id="grantCameraBtn">Grant Camera Access</button>
     <button id="darkModeBtn">🌙 Dark Mode</button>
   </div>
 
-  <!-- ✅ Scanner Popup -->
+  <!-- Scanner Popup -->
   <div id="scannerOverlay">
     <div id="scannerBox">
       <h3>Scan QR Code</h3>
@@ -224,9 +224,9 @@
 
     const scanBtn = document.getElementById("scanBtn");
     const uploadBtn = document.getElementById("uploadBtn");
+    const grantCameraBtn = document.getElementById("grantCameraBtn");
 
     async function loadData() {
-      // Disable buttons & show spinner
       scanBtn.disabled = true;
       uploadBtn.disabled = true;
       scanBtn.innerHTML = 'Scan QR <span class="spinner scan"></span>';
@@ -252,7 +252,6 @@
         statusDiv.textContent = "Failed to load data.";
       }
 
-      // Enable buttons & remove spinner
       scanBtn.disabled = false;
       uploadBtn.disabled = false;
       scanBtn.textContent = 'Scan QR';
@@ -283,7 +282,7 @@
       const table = document.createElement("table");
       const thead = document.createElement("thead");
       const headerRow = document.createElement("tr");
-      ["CTRL NO", "APPLICANT", "LOT/SURVEY NO", "ZONE CLASS", "BARANGAY"].forEach(h => {
+      ["CONTROL NO", "APPLICANT NAME", "LOT/SURVEY NO", "CLASSIFICATIONID_F", "BARANGAYID_F"].forEach(h => {
         const th = document.createElement("th");
         th.textContent = h;
         headerRow.appendChild(th);
@@ -382,62 +381,50 @@
 
     function tick() {
       if (!scanning) return;
-      if (video.readyState === video.HAVE_ENOUGH_DATA) {
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
-        if (code) {
-          document.getElementById("searchBox").value = code.data;
-          document.getElementById("searchField").value = "CONTROL NO";
-          runSearch();
-          stopScanner();
-        }
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
+      if (code) {
+        document.getElementById("searchBox").value = code.data;
+        stopScanner();
+        runSearch();
+      } else {
+        animationId = requestAnimationFrame(tick);
       }
-      animationId = requestAnimationFrame(tick);
     }
 
     scanBtn.addEventListener("click", () => {
-      if (scanning) stopScanner(); else startScanner();
+      if (scanning) stopScanner();
+      else startScanner();
     });
     document.getElementById("closeScanner").addEventListener("click", stopScanner);
+    document.getElementById("clearBtn").addEventListener("click", clearSearch);
+    document.getElementById("searchBtn").addEventListener("click", runSearch);
 
-    // QR Upload
-    document.getElementById("uploadBtn").addEventListener("click", () => document.getElementById("uploadQR").click());
-    document.getElementById("uploadQR").addEventListener("change", e => {
-      const file = e.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = () => {
-        const img = new Image();
-        img.onload = () => {
-          canvas.width = img.width;
-          canvas.height = img.height;
-          ctx.drawImage(img, 0, 0);
-          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          const code = jsQR(imageData.data, imageData.width, imageData.height);
-          if (code) {
-            document.getElementById("searchBox").value = code.data;
-            document.getElementById("searchField").value = "CONTROL NO";
-            runSearch();
-          } else {
-            alert("No QR code found.");
-          }
-        };
-        img.src = reader.result;
-      };
-      reader.readAsDataURL(file);
+    grantCameraBtn.addEventListener("click", async () => {
+      try {
+        const tempStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        tempStream.getTracks().forEach(t => t.stop());
+        alert("Camera access granted!");
+      } catch (err) {
+        alert("Camera permission denied.");
+      }
     });
 
-    // Search events
-    document.getElementById("searchBtn").addEventListener("click", runSearch);
-    document.getElementById("clearBtn").addEventListener("click", clearSearch);
-    document.getElementById("searchBox").addEventListener("keypress", e => { if (e.key === "Enter") runSearch(); });
-    document.getElementById("searchBox").addEventListener("input", runSearch);
-
-    // Dark mode
+    // Dark mode toggle
     document.getElementById("darkModeBtn").addEventListener("click", () => document.body.classList.toggle("dark"));
 
-    loadData();
+    // Auto-prompt camera permission on load
+    window.addEventListener("load", async () => {
+      try {
+        const tempStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        tempStream.getTracks().forEach(t => t.stop());
+        console.log("Camera permission granted!");
+      } catch (err) {
+        console.warn("Camera permission denied or unavailable:", err.message);
+      }
+      loadData();
+    });
   </script>
 </body>
 </html>
