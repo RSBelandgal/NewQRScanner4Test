@@ -207,7 +207,7 @@
     let sheetData = [];
     let totalRecords = 0;
 
-    const FIELDS_TO_SHOW = [ "DATE RECEIPT", "RELEASED_D", "CONTROL NO", "PIN", "NEW PIN", "APPLICANT NAME", "LOT/SURVEY NO", "LOT/SURVEY NO", "LAND AREA", "BARANGAYID_F", "CLASSIFICATIONID_F", "PLUSCODES", "OR NO", "OR DATE", "REMARKS" ];
+    const FIELDS_TO_SHOW = [ "DATE RECEIPT", "RELEASED_D", "CONTROL NO", "PIN", "NEW PIN", "APPLICANT NAME", "LOT/SURVEY NO", "LAND AREA", "BARANGAYID_F", "CLASSIFICATIONID_F", "PLUSCODES", "OR NO", "OR DATE", "REMARKS" ];
     const SEARCHABLE_FIELDS = [ "CONTROL NO", "PIN", "NEW PIN", "APPLICANT NAME", "LOT/SURVEY NO" ];
 
     const dropdown = document.getElementById("searchField");
@@ -320,8 +320,7 @@
       document.getElementById("validatedMsg").style.display = "none";
     }
 
-    // ✅ Improved runSearch with success/error beep + flash
-    function runSearch() {
+    function runSearch(fromTyping = false) {
       if (!sheetData.length) return;
       const query = document.getElementById("searchBox").value.trim().toLowerCase();
       const selectedField = document.getElementById("searchField").value;
@@ -342,14 +341,13 @@
         validatedMsg.textContent = "VERIFIED DATA!";
         validatedMsg.style.color = "green";
         validatedMsg.style.display = "block";
-        playBeep("success");
+        if (fromTyping) playBeep("success"); // ✅ beep only after typing pause
       } else {
         clearFields();
         validatedMsg.textContent = "NO RECORD FOUND!";
         validatedMsg.style.color = "red";
         validatedMsg.style.display = "block";
-        playBeep("error");
-        flashRed();
+        if (fromTyping) playBeep("error"); // ✅ error beep after typing pause
       }
     }
 
@@ -360,98 +358,105 @@
       document.getElementById("searchBox").focus();
     }
 
-    // ✅ Auto search as you type
-    document.getElementById("searchBox").addEventListener("input", runSearch);
-    document.getElementById("searchBtn").addEventListener("click", runSearch);
+    // Debounced auto-search with 2s delay
+    let typingTimer;
+    const typingDelay = 2000; // 2 seconds
+    document.getElementById("searchBox").addEventListener("input", () => {
+      clearTimeout(typingTimer);
+      typingTimer = setTimeout(() => {
+        runSearch(true);
+      }, typingDelay);
+    });
+
+    document.getElementById("searchBtn").addEventListener("click", () => runSearch(true));
     document.getElementById("clearBtn").addEventListener("click", clearSearch);
+
     document.getElementById("darkModeBtn").addEventListener("click", () => document.body.classList.toggle("dark"));
 
-    // ----------------- QR Scanner -----------------
+    // --- Beep function ---
+    function playBeep(type="success") {
+      try {
+        if (!window.beepAudioCtx) {
+          window.beepAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        const audioCtx = window.beepAudioCtx;
+        const oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+
+        if (type === "success") {
+          oscillator.type = "square";
+          oscillator.frequency.value = 880;
+          gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
+          oscillator.start();
+          oscillator.stop(audioCtx.currentTime + 0.15);
+        } else {
+          oscillator.type = "sawtooth";
+          oscillator.frequency.value = 220;
+          gainNode.gain.setValueAtTime(0.25, audioCtx.currentTime);
+          oscillator.start();
+          oscillator.stop(audioCtx.currentTime + 0.35);
+        }
+      } catch(e) {
+        console.warn("Beep failed:", e);
+      }
+    }
+
+    // --- Scanner functionality ---
+    const scannerOverlay = document.getElementById("scannerOverlay");
     const video = document.getElementById("video");
     const canvas = document.getElementById("canvas");
     const ctx = canvas.getContext("2d");
-    let scanning = false, stream = null, animationId = null;
+    let scanning = false;
+    let videoStream = null;
 
-    // ✅ Two beep types
-    function playBeep(type="success") {
-      const ctxAudio = new (window.AudioContext || window.webkitAudioContext)();
-      const oscillator = ctxAudio.createOscillator();
-      const gainNode = ctxAudio.createGain();
-      oscillator.connect(gainNode);
-      gainNode.connect(ctxAudio.destination);
-
-      if (type === "success") {
-        oscillator.frequency.setValueAtTime(1200, ctxAudio.currentTime);
-        oscillator.type = "square";
-        gainNode.gain.setValueAtTime(0.3, ctxAudio.currentTime);
-        oscillator.start();
-        oscillator.stop(ctxAudio.currentTime + 0.15);
-      } else if (type === "error") {
-        oscillator.frequency.setValueAtTime(400, ctxAudio.currentTime);
-        oscillator.type = "sawtooth";
-        gainNode.gain.setValueAtTime(0.4, ctxAudio.currentTime);
-        oscillator.start();
-        oscillator.stop(ctxAudio.currentTime + 0.25);
-      }
-    }
-
-    // ✅ Flash background red for error
-    function flashRed() {
-      const originalBg = document.body.style.backgroundColor;
-      document.body.style.backgroundColor = "red";
-      setTimeout(() => {
-        document.body.style.backgroundColor = "";
-      }, 200);
-    }
-
-    function startScanner() {
-      document.getElementById("scannerOverlay").style.display = "flex";
-      navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }).then(s => {
-        stream = s;
-        video.srcObject = s;
+    scanBtn.addEventListener("click", async () => {
+      scannerOverlay.style.display = "flex";
+      try {
+        videoStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        video.srcObject = videoStream;
         video.setAttribute("playsinline", true);
         video.play();
         scanning = true;
-        tick();
-      });
-    }
-
-    function stopScanner() {
-      scanning = false;
-      if (animationId) cancelAnimationFrame(animationId);
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-        stream = null;
+        requestAnimationFrame(tick);
+      } catch(err) {
+        alert("Camera access denied.");
       }
-      document.getElementById("scannerOverlay").style.display = "none";
+    });
+
+    document.getElementById("closeScanner").addEventListener("click", closeScanner);
+
+    function closeScanner() {
+      scanning = false;
+      scannerOverlay.style.display = "none";
+      if (videoStream) {
+        videoStream.getTracks().forEach(track => track.stop());
+      }
     }
 
     function tick() {
       if (!scanning) return;
-      if (video.readyState !== video.HAVE_ENOUGH_DATA) {
-        animationId = requestAnimationFrame(tick);
-        return;
+      if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
+        if (code) {
+          scanning = false;
+          closeScanner();
+          handleQRResult(code.data, true);
+          return;
+        }
       }
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
-      if (code) {
-        document.getElementById("searchBox").value = code.data;
-        stopScanner();
-        runSearch();
-      } else {
-        animationId = requestAnimationFrame(tick);
-      }
+      requestAnimationFrame(tick);
     }
 
-    scanBtn.addEventListener("click", startScanner);
-    document.getElementById("closeScanner").addEventListener("click", stopScanner);
-
-    // ----------------- Upload QR -----------------
     uploadBtn.addEventListener("click", () => document.getElementById("uploadQR").click());
-    document.getElementById("uploadQR").addEventListener("change", function(e) {
+    document.getElementById("uploadQR").addEventListener("change", handleFile);
+
+    function handleFile(e) {
       const file = e.target.files[0];
       if (!file) return;
       const reader = new FileReader();
@@ -460,16 +465,13 @@
         img.onload = function() {
           canvas.width = img.width;
           canvas.height = img.height;
-          ctx.drawImage(img, 0, 0);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
           const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
           const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
           if (code) {
-            document.getElementById("searchBox").value = code.data;
-            runSearch();
+            handleQRResult(code.data, true);
           } else {
-            document.getElementById("validatedMsg").textContent = "NO RECORD FOUND!";
-            document.getElementById("validatedMsg").style.color = "red";
-            document.getElementById("validatedMsg").style.display = "block";
+            alert("No QR code found in image.");
             playBeep("error");
             flashRed();
           }
@@ -477,7 +479,37 @@
         img.src = reader.result;
       };
       reader.readAsDataURL(file);
-    });
+    }
+
+    function handleQRResult(data, fromScanOrUpload=false) {
+      const searchField = document.getElementById("searchField").value;
+      const result = sheetData.find(row => row[searchField] && String(row[searchField]).trim().toLowerCase() === data.trim().toLowerCase());
+
+      const validatedMsg = document.getElementById("validatedMsg");
+      if (result) {
+        fillFields(result);
+        showResults([result]);
+        validatedMsg.textContent = "VERIFIED DATA!";
+        validatedMsg.style.color = "green";
+        validatedMsg.style.display = "block";
+        playBeep("success");
+      } else {
+        clearFields();
+        showResults([]);
+        validatedMsg.textContent = "NO RECORD FOUND!";
+        validatedMsg.style.color = "red";
+        validatedMsg.style.display = "block";
+        playBeep("error");
+        if (fromScanOrUpload) flashRed(); // ✅ only flash for scan/upload
+      }
+    }
+
+    function flashRed() {
+      document.body.style.background = "#ffcccc";
+      setTimeout(() => {
+        document.body.style.background = "";
+      }, 200);
+    }
 
     loadData();
   </script>
