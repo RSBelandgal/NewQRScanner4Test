@@ -30,6 +30,14 @@
       color: blue;
     }
 
+    /* Make Total Records value bold, label normal */
+    #totalRecords {
+      font-weight: normal; /* label stays normal */
+    }
+    #totalRecordsValue {
+      font-weight: bold; /* only value is bold */
+    }
+
     #sheetInfo { text-align: right; font-size: 14px; color: #555; }
     body.dark #sheetInfo { color: #bbb; }
 
@@ -164,7 +172,7 @@
       <div id="recordsFound">Records Found: <span id="recordsCount">0</span></div>
     </div>
     <div id="sheetInfo">
-      <div id="totalRecords">Total Records: 0</div>
+      <div id="totalRecords">Total Records: <span id="totalRecordsValue">0</span></div>
       <div id="sheetName">&nbsp;</div>
       <div id="status">Loading data…</div>
     </div>
@@ -261,9 +269,9 @@
           return obj;
         });
         totalRecords = sheetData.length;
-        document.getElementById("totalRecords").textContent = `Total Records: ${totalRecords}`;
+        document.getElementById("totalRecordsValue").textContent = totalRecords;
         document.getElementById("sheetName").textContent = rawData.spreadsheetName || "Unknown Sheet";
-        document.getElementById("recordsCount").textContent = totalRecords;
+        document.getElementById("recordsCount").textContent = 0;
         statusDiv.textContent = "Data loaded. You can now search.";
       } catch(err) {
         statusDiv.textContent = "Failed to load data.";
@@ -275,7 +283,7 @@
       uploadBtn.textContent = 'Upload QR';
     }
 
-    function fillFields(row) {
+     function fillFields(row) {
       FIELDS_TO_SHOW.forEach(field => {
         const el = document.getElementById(field);
         if (!el) return;
@@ -299,6 +307,9 @@
       const counterDiv = document.getElementById("counter");
       resultsDiv.innerHTML = "";
       counterDiv.textContent = `Showing ${data.length} of ${totalRecords} record(s)`;
+
+      // Update Records Found count
+      document.getElementById("recordsCount").textContent = data.length;
 
       if (!data.length) return;
 
@@ -332,6 +343,8 @@
       document.getElementById("results").innerHTML = "";
       document.getElementById("counter").textContent = "";
       document.getElementById("validatedMsg").style.display = "none";
+      // Reset Records Found when cleared
+      document.getElementById("recordsCount").textContent = 0;
     }
 
     function flashRed() {
@@ -373,8 +386,7 @@
     function clearSearch() {
       document.getElementById("searchBox").value = "";
       clearResults();
-      clearFields();
-      document.getElementById("searchBox").focus();
+      clearFields();   
     }
 
     let typingTimer;
