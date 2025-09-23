@@ -19,6 +19,17 @@
     #topHeader { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; flex-wrap: wrap; }
     #developer { font-size: 14px; color: #555; }
     body.dark #developer { color: #ccc; }
+
+    /* Records Found below developer */
+    #recordsFound {
+      font-size: 14px;
+      margin-top: 2px;
+    }
+    #recordsFound span {
+      font-weight: bold;
+      color: blue;
+    }
+
     #sheetInfo { text-align: right; font-size: 14px; color: #555; }
     body.dark #sheetInfo { color: #bbb; }
 
@@ -148,7 +159,10 @@
 </head>
 <body>
   <div id="topHeader">
-    <div id="developer">Developer: Rodney Belangdal</div>
+    <div>
+      <div id="developer">Developer: Rodney Belangdal</div>
+      <div id="recordsFound">Records Found: <span id="recordsCount">0</span></div>
+    </div>
     <div id="sheetInfo">
       <div id="totalRecords">Total Records: 0</div>
       <div id="sheetName">&nbsp;</div>
@@ -285,6 +299,9 @@
       resultsDiv.innerHTML = "";
       counterDiv.textContent = `Showing ${data.length} of ${totalRecords} record(s)`;
 
+      // Update matched record count
+      document.getElementById("recordsCount").textContent = data.length;
+
       if (!data.length) return;
 
       const table = document.createElement("table");
@@ -316,6 +333,7 @@
     function clearResults() {
       document.getElementById("results").innerHTML = "";
       document.getElementById("counter").textContent = "";
+      document.getElementById("recordsCount").textContent = 0;
       document.getElementById("validatedMsg").style.display = "none";
     }
 
@@ -371,105 +389,86 @@
 
     document.getElementById("searchBtn").addEventListener("click", () => runSearch(true));
     document.getElementById("clearBtn").addEventListener("click", clearSearch);
-    document.getElementById("darkModeBtn").addEventListener("click", () => document.body.classList.toggle("dark"));
 
-    function playBeep(type="success") {
-      try {
-        if (!window.beepAudioCtx) window.beepAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        const ctx = window.beepAudioCtx;
-        const oscillator = ctx.createOscillator();
-        oscillator.type = "square";
-        oscillator.frequency.value = type === "success" ? 1000 : 300; 
-        oscillator.connect(ctx.destination);
-        oscillator.start();
-        oscillator.stop(ctx.currentTime + 0.12);
-      } catch(e) {}
+    function playBeep(type) {
+      let context = new (window.AudioContext || window.webkitAudioContext)();
+      let o = context.createOscillator();
+      o.type = "square";
+      o.connect(context.destination);
+      if (type === "success") { o.frequency.value = 1200; } 
+      else { o.frequency.value = 400; } 
+      o.start();
+      o.stop(context.currentTime + 0.2);
     }
 
-    // QR Scanner
+    document.getElementById("darkModeBtn").addEventListener("click", () => document.body.classList.toggle("dark"));
+
+    // QR scanning
     const scannerOverlay = document.getElementById("scannerOverlay");
+    const closeScanner = document.getElementById("closeScanner");
     const video = document.getElementById("video");
     const canvas = document.getElementById("canvas");
-    let scanning = false;
-    let stream = null;
+    const ctx = canvas.getContext("2d");
 
-    scanBtn.addEventListener("click", async () => {
+    scanBtn.addEventListener("click", () => {
       scannerOverlay.style.display = "flex";
-      clearSearch();
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }).then(stream => {
         video.srcObject = stream;
         video.setAttribute("playsinline", true);
         video.play();
-        scanning = true;
-        requestAnimationFrame(tick);
-      } catch(e) {
-        alert("Camera access denied or unavailable.");
-      }
+        requestAnimationFrame(scanLoop);
+      });
     });
 
-    document.getElementById("closeScanner").addEventListener("click", () => {
+    closeScanner.addEventListener("click", () => {
       scannerOverlay.style.display = "none";
-      scanning = false;
-      if (stream) stream.getTracks().forEach(track => track.stop());
+      if (video.srcObject) video.srcObject.getTracks().forEach(track => track.stop());
     });
 
-    function tick() {
-      if (!scanning) return;
+    function scanLoop() {
       if (video.readyState === video.HAVE_ENOUGH_DATA) {
-        canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
-        const ctx = canvas.getContext("2d");
+        canvas.width = video.videoWidth;
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const code = jsQR(imageData.data, canvas.width, canvas.height);
+        const code = jsQR(imageData.data, imageData.width, imageData.height);
         if (code) {
-          scanning = false;
-          scannerOverlay.style.display = "none";
-          if (stream) stream.getTracks().forEach(track => track.stop());
           document.getElementById("searchBox").value = code.data;
           runSearch(true);
+          closeScanner.click();
+          return;
         }
       }
-      requestAnimationFrame(tick);
+      requestAnimationFrame(scanLoop);
     }
 
-    // QR Upload
     uploadBtn.addEventListener("click", () => document.getElementById("uploadQR").click());
-
-    document.getElementById("uploadQR").addEventListener("change", function(){
-      const file = this.files[0];
+    document.getElementById("uploadQR").addEventListener("change", event => {
+      const file = event.target.files[0];
       if (!file) return;
-
-      clearSearch();
-
       const reader = new FileReader();
       reader.onload = e => {
         const img = new Image();
         img.onload = () => {
           canvas.width = img.width;
           canvas.height = img.height;
-          const ctx = canvas.getContext("2d");
           ctx.drawImage(img, 0, 0);
           const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          const code = jsQR(imageData.data, canvas.width, canvas.height);
-
+          const code = jsQR(imageData.data, imageData.width, imageData.height);
           if (code) {
             document.getElementById("searchBox").value = code.data;
             runSearch(true);
           } else {
-            flashRed();
+            document.getElementById("validatedMsg").textContent = "NO QR DATA FOUND!";
+            document.getElementById("validatedMsg").style.color = "red";
+            document.getElementById("validatedMsg").style.display = "block";
             playBeep("error");
-            const validatedMsg = document.getElementById("validatedMsg");
-            validatedMsg.textContent = "NO QR FOUND!";
-            validatedMsg.style.color = "red";
-            validatedMsg.style.display = "block";
+            flashRed();
           }
         };
         img.src = e.target.result;
       };
       reader.readAsDataURL(file);
-      this.value = "";
     });
 
     window.addEventListener("load", loadData);
