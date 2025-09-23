@@ -356,9 +356,12 @@
       document.getElementById("searchBox").focus();
     }
 
+    // Auto search as you type
     document.getElementById("searchBox").addEventListener("input", runSearch);
+
     document.getElementById("searchBtn").addEventListener("click", runSearch);
     document.getElementById("clearBtn").addEventListener("click", clearSearch);
+
     document.getElementById("darkModeBtn").addEventListener("click", () => document.body.classList.toggle("dark"));
 
     // QR Scanner
@@ -370,9 +373,13 @@
     function playBeep() {
       const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       const oscillator = audioCtx.createOscillator();
-      oscillator.type = 'sine';
-      oscillator.frequency.setValueAtTime(800, audioCtx.currentTime);
-      oscillator.connect(audioCtx.destination);
+      oscillator.type = 'square';
+      oscillator.frequency.setValueAtTime(1000, audioCtx.currentTime);
+      const gainNode = audioCtx.createGain();
+      oscillator.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+      gainNode.gain.setValueAtTime(1, audioCtx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.15);
       oscillator.start();
       oscillator.stop(audioCtx.currentTime + 0.15);
     }
@@ -382,64 +389,72 @@
         stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
         video.srcObject = stream;
         video.play();
-        scanning = true;
+        video.addEventListener("loadedmetadata", () => {
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          scanning = true;
+          tick();
+        });
         document.getElementById("scannerOverlay").style.display = "flex";
-        scanFrame();
-      } catch(err) {
-        alert("Camera access denied or unavailable.");
+        scanBtn.textContent = "Stop Scan";
+      } catch (err) {
+        alert("Camera error: " + err.message);
       }
     }
 
     function stopScanner() {
       scanning = false;
-      document.getElementById("scannerOverlay").style.display = "none";
       if (animationId) cancelAnimationFrame(animationId);
-      if (stream) stream.getTracks().forEach(track => track.stop());
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      document.getElementById("scannerOverlay").style.display = "none";
+      scanBtn.textContent = "Scan QR";
     }
 
-    function scanFrame() {
+    function tick() {
       if (!scanning) return;
       if (video.readyState === video.HAVE_ENOUGH_DATA) {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const code = jsQR(imageData.data, imageData.width, imageData.height);
+        const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
         if (code) {
-          stopScanner();
-          playBeep();
           document.getElementById("searchBox").value = code.data;
           document.getElementById("searchField").value = "CONTROL NO";
           runSearch();
+          playBeep();
+          stopScanner();
         }
       }
-      animationId = requestAnimationFrame(scanFrame);
+      animationId = requestAnimationFrame(tick);
     }
 
-    scanBtn.addEventListener("click", startScanner);
+    scanBtn.addEventListener("click", () => { if (scanning) stopScanner(); else startScanner(); });
     document.getElementById("closeScanner").addEventListener("click", stopScanner);
 
-    // QR Upload
-    uploadBtn.addEventListener("click", () => document.getElementById("uploadQR").click());
-    document.getElementById("uploadQR").addEventListener("change", event => {
-      const file = event.target.files[0];
+    document.getElementById("uploadBtn").addEventListener("click", () => document.getElementById("uploadQR").click());
+    document.getElementById("uploadQR").addEventListener("change", e => {
+      const file = e.target.files[0];
       if (!file) return;
-      const img = new Image();
-      img.onload = () => {
-        canvas.width = img.width;
-        canvas.height = img.height;
-        ctx.drawImage(img, 0, 0);
-        const code = jsQR(ctx.getImageData(0, 0, canvas.width, canvas.height).data, canvas.width, canvas.height);
-        if (code) {
-          playBeep(); // Beep for uploaded QR
-          document.getElementById("searchBox").value = code.data;
-          document.getElementById("searchField").value = "CONTROL NO";
-          runSearch();
-        } else {
-          alert("No QR code found.");
-        }
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          canvas.width = img.width;
+          canvas.height = img.height;
+          ctx.drawImage(img, 0, 0);
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const code = jsQR(imageData.data, imageData.width, imageData.height);
+          if (code) {
+            document.getElementById("searchBox").value = code.data;
+            document.getElementById("searchField").value = "CONTROL NO";
+            runSearch();
+            playBeep();
+          } else {
+            alert("No QR code found.");
+          }
+        };
+        img.src = reader.result;
       };
-      img.src = URL.createObjectURL(file);
+      reader.readAsDataURL(file);
     });
 
     loadData();
