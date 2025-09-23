@@ -320,6 +320,14 @@
       document.getElementById("validatedMsg").style.display = "none";
     }
 
+    // Flash screen effect
+    function flashRed() {
+      document.body.style.background = "#ffcccc";
+      setTimeout(() => {
+        document.body.style.background = "";
+      }, 200);
+    }
+
     function runSearch(fromTyping = false) {
       if (!sheetData.length) return;
       const query = document.getElementById("searchBox").value.trim().toLowerCase();
@@ -341,13 +349,16 @@
         validatedMsg.textContent = "VERIFIED DATA!";
         validatedMsg.style.color = "green";
         validatedMsg.style.display = "block";
-        if (fromTyping) playBeep("success"); // ✅ beep only after typing pause
+        if (fromTyping) playBeep("success");
       } else {
         clearFields();
         validatedMsg.textContent = "NO RECORD FOUND!";
         validatedMsg.style.color = "red";
         validatedMsg.style.display = "block";
-        if (fromTyping) playBeep("error"); // ✅ error beep after typing pause
+        if (fromTyping) {
+          playBeep("error");
+          flashRed();
+        }
       }
     }
 
@@ -358,9 +369,9 @@
       document.getElementById("searchBox").focus();
     }
 
-    // Debounced auto-search with 2s delay
+    // Debounced auto-search with 1s delay
     let typingTimer;
-    const typingDelay = 2000; // 2 seconds
+    const typingDelay = 1000; // 1 second
     document.getElementById("searchBox").addEventListener("input", () => {
       clearTimeout(typingTimer);
       typingTimer = setTimeout(() => {
@@ -370,10 +381,9 @@
 
     document.getElementById("searchBtn").addEventListener("click", () => runSearch(true));
     document.getElementById("clearBtn").addEventListener("click", clearSearch);
-
     document.getElementById("darkModeBtn").addEventListener("click", () => document.body.classList.toggle("dark"));
 
-    // --- Beep function ---
+    // Beep function
     function playBeep(type="success") {
       try {
         if (!window.beepAudioCtx) {
@@ -398,12 +408,10 @@
           oscillator.start();
           oscillator.stop(audioCtx.currentTime + 0.35);
         }
-      } catch(e) {
-        console.warn("Beep failed:", e);
-      }
+      } catch(e) { console.warn("Beep failed:", e); }
     }
 
-    // --- Scanner functionality ---
+    // Scanner functionality
     const scannerOverlay = document.getElementById("scannerOverlay");
     const video = document.getElementById("video");
     const canvas = document.getElementById("canvas");
@@ -420,19 +428,14 @@
         video.play();
         scanning = true;
         requestAnimationFrame(tick);
-      } catch(err) {
-        alert("Camera access denied.");
-      }
+      } catch(err) { alert("Camera access denied."); }
     });
 
     document.getElementById("closeScanner").addEventListener("click", closeScanner);
-
     function closeScanner() {
       scanning = false;
       scannerOverlay.style.display = "none";
-      if (videoStream) {
-        videoStream.getTracks().forEach(track => track.stop());
-      }
+      if (videoStream) videoStream.getTracks().forEach(track => track.stop());
     }
 
     function tick() {
@@ -455,7 +458,6 @@
 
     uploadBtn.addEventListener("click", () => document.getElementById("uploadQR").click());
     document.getElementById("uploadQR").addEventListener("change", handleFile);
-
     function handleFile(e) {
       const file = e.target.files[0];
       if (!file) return;
@@ -484,8 +486,8 @@
     function handleQRResult(data, fromScanOrUpload=false) {
       const searchField = document.getElementById("searchField").value;
       const result = sheetData.find(row => row[searchField] && String(row[searchField]).trim().toLowerCase() === data.trim().toLowerCase());
-
       const validatedMsg = document.getElementById("validatedMsg");
+
       if (result) {
         fillFields(result);
         showResults([result]);
@@ -500,15 +502,8 @@
         validatedMsg.style.color = "red";
         validatedMsg.style.display = "block";
         playBeep("error");
-        if (fromScanOrUpload) flashRed(); // ✅ only flash for scan/upload
+        if (fromScanOrUpload) flashRed();
       }
-    }
-
-    function flashRed() {
-      document.body.style.background = "#ffcccc";
-      setTimeout(() => {
-        document.body.style.background = "";
-      }, 200);
     }
 
     loadData();
