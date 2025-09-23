@@ -147,231 +147,12 @@
   </style>
 </head>
 <body>
-  <div id="topHeader">
-    <div id="developer">Developer: Rodney Belangdal</div>
-    <div id="sheetInfo">
-      <div id="totalRecords">Total Records: 0</div>
-      <div id="sheetName">&nbsp;</div>
-      <div id="status">Loading data…</div>
-    </div>
-  </div>
-
-  <h2>LUZAD ZONING CERTIFICATION VERIFICATION @ CPDO2025</h2>
-  <select id="searchField"></select>
-  <input type="text" id="searchBox" placeholder="Search..." />
-  <button id="searchBtn">Search</button>
-  <button id="clearBtn">Clear</button>
-
-  <div>
-    <button id="scanBtn">Scan QR</button>
-    <button id="uploadBtn">Upload QR</button>
-    <button id="darkModeBtn">🌙 Dark Mode</button>
-  </div>
-
-  <div id="scannerOverlay">
-    <div id="scannerBox">
-      <h3>Scan QR Code</h3>
-      <video id="video" playsinline></video>
-      <canvas id="canvas"></canvas>
-      <button id="closeScanner">Close</button>
-    </div>
-  </div>
-
-  <div id="validatedMsg"></div>
-  <input type="file" id="uploadQR" accept="image/*" style="display:none;">
-
-  <div id="fields">
-    <div class="field"><span class="field-name">DATE RECEIPT :</span><span class="field-value" id="DATE RECEIPT">&nbsp;</span></div>
-    <div class="field"><span class="field-name">RELEASED DATE :</span><span class="field-value" id="RELEASED_D">&nbsp;</span></div>
-    <div class="field"><span class="field-name">CONTROL NO :</span><span class="field-value" id="CONTROL NO">&nbsp;</span></div>
-    <div class="field"><span class="field-name">PIN :</span><span class="field-value" id="PIN">&nbsp;</span></div>
-    <div class="field"><span class="field-name">NEW PIN :</span><span class="field-value" id="NEW PIN">&nbsp;</span></div>
-    <div class="field"><span class="field-name">APPLICANT NAME :</span><span class="field-value" id="APPLICANT NAME">&nbsp;</span></div>
-    <div class="field"><span class="field-name">LOT/SURVEY NO :</span><span class="field-value" id="LOT/SURVEY NO">&nbsp;</span></div>
-    <div class="field"><span class="field-name">LAND AREA :</span><span class="field-value" id="LAND AREA">&nbsp;</span></div>
-    <div class="field"><span class="field-name">BARANGAY :</span><span class="field-value" id="BARANGAYID_F">&nbsp;</span></div>
-    <div class="field"><span class="field-name">ZONE CLASS :</span><span class="field-value" id="CLASSIFICATIONID_F">&nbsp;</span></div>
-    <div class="field"><span class="field-name">PLUSCODE :</span><span class="field-value" id="PLUSCODES">&nbsp;</span></div>
-    <div class="field"><span class="field-name">OR NO :</span><span class="field-value" id="OR NO">&nbsp;</span></div>
-    <div class="field"><span class="field-name">OR DATE :</span><span class="field-value" id="OR DATE">&nbsp;</span></div>    
-    <div class="field"><span class="field-name">REMARKS :</span><span class="field-value" id="REMARKS">&nbsp;</span></div>
-  </div>
-
-  <div id="counter"></div>
-  <div id="results"></div>
+  <!-- your HTML body unchanged ... -->
 
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 
   <script>
-    const apiURL = "https://script.google.com/macros/s/AKfycbzl2hyJ6R807HCLGRZXPgniqPhuHpxJpSIEzy3cXE-W9Otnr6RUGh5L9TxB7OMgns3i/exec";
-    let sheetData = [];
-    let totalRecords = 0;
-
-    const FIELDS_TO_SHOW = [ "DATE RECEIPT", "RELEASED_D", "CONTROL NO", "PIN", "NEW PIN", "APPLICANT NAME", "LOT/SURVEY NO", "LAND AREA", "BARANGAYID_F", "CLASSIFICATIONID_F", "PLUSCODES", "OR NO", "OR DATE", "REMARKS" ];
-    const SEARCHABLE_FIELDS = [ "CONTROL NO", "PIN", "NEW PIN", "APPLICANT NAME", "LOT/SURVEY NO" ];
-
-    const dropdown = document.getElementById("searchField");
-    SEARCHABLE_FIELDS.forEach(field => {
-      const option = document.createElement("option");
-      option.value = field;
-      option.textContent = field;
-      dropdown.appendChild(option);
-    });
-
-    const scanBtn = document.getElementById("scanBtn");
-    const uploadBtn = document.getElementById("uploadBtn");
-
-    function formatLongDate(value) {
-      if (!value) return "\u00A0";
-      const date = new Date(value);
-      if (isNaN(date)) return value;
-      const options = { year: 'numeric', month: 'long', day: '2-digit' };
-      return date.toLocaleDateString('en-US', options);
-    }
-
-    async function loadData() {
-      scanBtn.disabled = true;
-      uploadBtn.disabled = true;
-      scanBtn.innerHTML = 'Scan QR <span class="spinner scan"></span>';
-      uploadBtn.innerHTML = 'Upload QR <span class="spinner upload"></span>';
-
-      const statusDiv = document.getElementById("status");
-      statusDiv.textContent = "Loading data…";
-
-      try {
-        const res = await fetch(apiURL);
-        const rawData = await res.json();
-        const headers = rawData.data[0];
-        sheetData = rawData.data.slice(1).map(row => {
-          let obj = {};
-          headers.forEach((h, i) => obj[h] = row[i]);
-          return obj;
-        });
-        totalRecords = sheetData.length;
-        document.getElementById("totalRecords").textContent = `Total Records: ${totalRecords}`;
-        document.getElementById("sheetName").textContent = rawData.spreadsheetName || "Unknown Sheet";
-        statusDiv.textContent = "Data loaded. You can now search.";
-      } catch(err) {
-        statusDiv.textContent = "Failed to load data.";
-      }
-
-      scanBtn.disabled = false;
-      uploadBtn.disabled = false;
-      scanBtn.textContent = 'Scan QR';
-      uploadBtn.textContent = 'Upload QR';
-    }
-
-    function fillFields(row) {
-      FIELDS_TO_SHOW.forEach(field => {
-        const el = document.getElementById(field);
-        if (!el) return;
-        let value = row[field] || "\u00A0";
-        if (field === "DATE RECEIPT" || field === "RELEASED_D" || field === "OR DATE") {
-          value = formatLongDate(value);
-        }
-        el.textContent = value;
-      });
-    }
-
-    function clearFields() {
-      FIELDS_TO_SHOW.forEach(field => {
-        const el = document.getElementById(field);
-        if (el) el.textContent = "\u00A0";
-      });
-    }
-
-    function showResults(data) {
-      const resultsDiv = document.getElementById("results");
-      const counterDiv = document.getElementById("counter");
-      resultsDiv.innerHTML = "";
-      counterDiv.textContent = `Showing ${data.length} of ${totalRecords} record(s)`;
-
-      if (!data.length) return;
-
-      const table = document.createElement("table");
-      const thead = document.createElement("thead");
-      const headerRow = document.createElement("tr");
-      ["CTRL NO", "APPLICANT", "LOT/SURVEY NO", "ZONE CLASS", "BARANGAY"].forEach(h => {
-        const th = document.createElement("th");
-        th.textContent = h;
-        headerRow.appendChild(th);
-      });
-      thead.appendChild(headerRow);
-      table.appendChild(thead);
-
-      const tbody = document.createElement("tbody");
-      data.forEach(row => {
-        const tr = document.createElement("tr");
-        ["CONTROL NO", "APPLICANT NAME", "LOT/SURVEY NO", "CLASSIFICATIONID_F", "BARANGAYID_F"].forEach(col => {
-          const td = document.createElement("td");
-          td.textContent = row[col] || "";
-          tr.appendChild(td);
-        });
-        tr.addEventListener("click", () => fillFields(row));
-        tbody.appendChild(tr);
-      });
-      table.appendChild(tbody);
-      resultsDiv.appendChild(table);
-    }
-
-    function clearResults() {
-      document.getElementById("results").innerHTML = "";
-      document.getElementById("counter").textContent = "";
-      document.getElementById("validatedMsg").style.display = "none";
-    }
-
-    function runSearch(fromTyping = false) {
-      if (!sheetData.length) return;
-      const query = document.getElementById("searchBox").value.trim().toLowerCase();
-      const selectedField = document.getElementById("searchField").value;
-      const validatedMsg = document.getElementById("validatedMsg");
-
-      if (!query) {
-        clearResults();
-        clearFields();
-        validatedMsg.style.display = "none";
-        return;
-      }
-
-      const filtered = sheetData.filter(row => row[selectedField] && String(row[selectedField]).trim().toLowerCase() === query);
-      showResults(filtered);
-
-      if (filtered.length > 0) {
-        fillFields(filtered[0]);
-        validatedMsg.textContent = "VERIFIED DATA!";
-        validatedMsg.style.color = "green";
-        validatedMsg.style.display = "block";
-        if (fromTyping) playBeep("success"); // ✅ beep only after typing pause
-      } else {
-        clearFields();
-        validatedMsg.textContent = "NO RECORD FOUND!";
-        validatedMsg.style.color = "red";
-        validatedMsg.style.display = "block";
-        if (fromTyping) playBeep("error"); // ✅ error beep after typing pause
-      }
-    }
-
-    function clearSearch() {
-      document.getElementById("searchBox").value = "";
-      clearResults();
-      clearFields();
-      document.getElementById("searchBox").focus();
-    }
-
-    // Debounced auto-search with 2s delay
-    let typingTimer;
-    const typingDelay = 2000; // 2 seconds
-    document.getElementById("searchBox").addEventListener("input", () => {
-      clearTimeout(typingTimer);
-      typingTimer = setTimeout(() => {
-        runSearch(true);
-      }, typingDelay);
-    });
-
-    document.getElementById("searchBtn").addEventListener("click", () => runSearch(true));
-    document.getElementById("clearBtn").addEventListener("click", clearSearch);
-
-    document.getElementById("darkModeBtn").addEventListener("click", () => document.body.classList.toggle("dark"));
+    // ... all your existing JS unchanged until playBeep ...
 
     // --- Beep function ---
     function playBeep(type="success") {
@@ -380,28 +161,52 @@
           window.beepAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
         }
         const audioCtx = window.beepAudioCtx;
-        const oscillator = audioCtx.createOscillator();
-        const gainNode = audioCtx.createGain();
-        oscillator.connect(gainNode);
-        gainNode.connect(audioCtx.destination);
 
         if (type === "success") {
-          oscillator.type = "square";
-          oscillator.frequency.value = 880;
-          gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
-          oscillator.start();
-          oscillator.stop(audioCtx.currentTime + 0.15);
+          // ✅ success beep (sharp, short)
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.type = "square";
+          osc.frequency.value = 880;
+          gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+          osc.start();
+          osc.stop(audioCtx.currentTime + 0.15);
         } else {
-          oscillator.type = "sawtooth";
-          oscillator.frequency.value = 220;
-          gainNode.gain.setValueAtTime(0.25, audioCtx.currentTime);
-          oscillator.start();
-          oscillator.stop(audioCtx.currentTime + 0.35);
+          // ❌ error beep (two-tone descending)
+          const now = audioCtx.currentTime;
+          const osc1 = audioCtx.createOscillator();
+          const gain1 = audioCtx.createGain();
+          osc1.connect(gain1);
+          gain1.connect(audioCtx.destination);
+          osc1.type = "sawtooth";
+          osc1.frequency.setValueAtTime(600, now);
+          gain1.gain.setValueAtTime(0.25, now);
+          osc1.start(now);
+          osc1.stop(now + 0.15);
+
+          const osc2 = audioCtx.createOscillator();
+          const gain2 = audioCtx.createGain();
+          osc2.connect(gain2);
+          gain2.connect(audioCtx.destination);
+          osc2.type = "sawtooth";
+          osc2.frequency.setValueAtTime(400, now + 0.16);
+          gain2.gain.setValueAtTime(0.25, now + 0.16);
+          osc2.start(now + 0.16);
+          osc2.stop(now + 0.35);
         }
       } catch(e) {
         console.warn("Beep failed:", e);
       }
     }
+
+    // ... rest of your original JS unchanged ...
+    loadData();
+  </script>
+</body>
+</html>
+
 
     // --- Scanner functionality ---
     const scannerOverlay = document.getElementById("scannerOverlay");
