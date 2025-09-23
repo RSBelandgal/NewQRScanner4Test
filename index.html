@@ -325,14 +325,15 @@
     }
 
     function runSearch(fromTyping = false) {
+      clearResults();
+      clearFields();
+
       if (!sheetData.length) return;
       const query = document.getElementById("searchBox").value.trim().toLowerCase();
       const selectedField = document.getElementById("searchField").value;
       const validatedMsg = document.getElementById("validatedMsg");
 
       if (!query) {
-        clearResults();
-        clearFields();
         validatedMsg.style.display = "none";
         return;
       }
@@ -347,7 +348,6 @@
         validatedMsg.style.display = "block";
         if (fromTyping) playBeep("success");
       } else {
-        clearFields();
         validatedMsg.textContent = "NO RECORD FOUND!";
         validatedMsg.style.color = "red";
         validatedMsg.style.display = "block";
@@ -379,38 +379,43 @@
         const ctx = window.beepAudioCtx;
         const oscillator = ctx.createOscillator();
         oscillator.type = "square";
-        oscillator.frequency.setValueAtTime(type==="success"?1000:400, ctx.currentTime);
+        oscillator.frequency.value = type === "success" ? 1000 : 300; 
         oscillator.connect(ctx.destination);
         oscillator.start();
-        oscillator.stop(ctx.currentTime + 0.15);
-      } catch(e) { console.log(e); }
+        oscillator.stop(ctx.currentTime + 0.12);
+      } catch(e) {}
     }
 
-    // QR scan/upload
+    // QR Scanner
     const scannerOverlay = document.getElementById("scannerOverlay");
     const video = document.getElementById("video");
     const canvas = document.getElementById("canvas");
-    const closeScannerBtn = document.getElementById("closeScanner");
+    let scanning = false;
+    let stream = null;
 
     scanBtn.addEventListener("click", async () => {
       scannerOverlay.style.display = "flex";
-      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      clearSearch();
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
         video.srcObject = stream;
         video.setAttribute("playsinline", true);
         video.play();
-        tick();
+        scanning = true;
+        requestAnimationFrame(tick);
+      } catch(e) {
+        alert("Camera access denied or unavailable.");
       }
     });
 
-    closeScannerBtn.addEventListener("click", () => {
+    document.getElementById("closeScanner").addEventListener("click", () => {
       scannerOverlay.style.display = "none";
-      const stream = video.srcObject;
+      scanning = false;
       if (stream) stream.getTracks().forEach(track => track.stop());
-      video.srcObject = null;
     });
 
     function tick() {
+      if (!scanning) return;
       if (video.readyState === video.HAVE_ENOUGH_DATA) {
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
@@ -419,19 +424,25 @@
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const code = jsQR(imageData.data, canvas.width, canvas.height);
         if (code) {
+          scanning = false;
+          scannerOverlay.style.display = "none";
+          if (stream) stream.getTracks().forEach(track => track.stop());
           document.getElementById("searchBox").value = code.data;
           runSearch(true);
-          closeScannerBtn.click();
-          return;
         }
       }
       requestAnimationFrame(tick);
     }
 
+    // QR Upload
     uploadBtn.addEventListener("click", () => document.getElementById("uploadQR").click());
+
     document.getElementById("uploadQR").addEventListener("change", function(){
       const file = this.files[0];
       if (!file) return;
+
+      clearSearch();
+
       const reader = new FileReader();
       reader.onload = e => {
         const img = new Image();
@@ -442,22 +453,26 @@
           ctx.drawImage(img, 0, 0);
           const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
           const code = jsQR(imageData.data, canvas.width, canvas.height);
+
           if (code) {
             document.getElementById("searchBox").value = code.data;
             runSearch(true);
           } else {
             flashRed();
             playBeep("error");
-            document.getElementById("validatedMsg").textContent = "NO QR FOUND!";
-            document.getElementById("validatedMsg").style.display = "block";
+            const validatedMsg = document.getElementById("validatedMsg");
+            validatedMsg.textContent = "NO QR FOUND!";
+            validatedMsg.style.color = "red";
+            validatedMsg.style.display = "block";
           }
         };
         img.src = e.target.result;
       };
       reader.readAsDataURL(file);
+      this.value = "";
     });
 
-    loadData();
+    window.addEventListener("load", loadData);
   </script>
 </body>
 </html>
