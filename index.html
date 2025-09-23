@@ -201,7 +201,6 @@
   <div id="results"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-
   <script>
     const apiURL = "https://script.google.com/macros/s/AKfycbzl2hyJ6R807HCLGRZXPgniqPhuHpxJpSIEzy3cXE-W9Otnr6RUGh5L9TxB7OMgns3i/exec";
     let sheetData = [];
@@ -320,13 +319,9 @@
       document.getElementById("validatedMsg").style.display = "none";
     }
 
-    // Flash screen effect
     function flashRed() {
-      const original = document.body.style.background;
       document.body.style.background = "#ffcccc";
-      setTimeout(() => {
-        document.body.style.background = original;
-      }, 200);
+      setTimeout(() => { document.body.style.background = ""; }, 200);
     }
 
     function runSearch(fromTyping = false) {
@@ -356,10 +351,7 @@
         validatedMsg.textContent = "NO RECORD FOUND!";
         validatedMsg.style.color = "red";
         validatedMsg.style.display = "block";
-        if (fromTyping) {
-          playBeep("error");
-          flashRed();
-        }
+        if (fromTyping) { playBeep("error"); flashRed(); }
       }
     }
 
@@ -370,62 +362,53 @@
       document.getElementById("searchBox").focus();
     }
 
-    // Debounced auto-search with 1s delay
     let typingTimer;
-    const typingDelay = 1000; // 1 second
+    const typingDelay = 1000; 
     document.getElementById("searchBox").addEventListener("input", () => {
       clearTimeout(typingTimer);
-      typingTimer = setTimeout(() => {
-        runSearch(true);
-      }, typingDelay);
+      typingTimer = setTimeout(() => { runSearch(true); }, typingDelay);
     });
 
     document.getElementById("searchBtn").addEventListener("click", () => runSearch(true));
     document.getElementById("clearBtn").addEventListener("click", clearSearch);
-    document.getElementById("searchBox").addEventListener("keypress", e => { if (e.key === "Enter") runSearch(true); });
+    document.getElementById("darkModeBtn").addEventListener("click", () => document.body.classList.toggle("dark"));
 
-    // Dark mode toggle
-    document.getElementById("darkModeBtn").addEventListener("click", () => {
-      document.body.classList.toggle("dark");
-    });
-
-    function playBeep(type) {
-      const context = new (window.AudioContext || window.webkitAudioContext)();
-      const oscillator = context.createOscillator();
-      oscillator.type = type === "success" ? "square" : "sine";
-      oscillator.frequency.setValueAtTime(type === "success" ? 1000 : 400, context.currentTime);
-      oscillator.connect(context.destination);
-      oscillator.start();
-      oscillator.stop(context.currentTime + 0.15);
+    function playBeep(type="success") {
+      try {
+        if (!window.beepAudioCtx) window.beepAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const ctx = window.beepAudioCtx;
+        const oscillator = ctx.createOscillator();
+        oscillator.type = "square";
+        oscillator.frequency.setValueAtTime(type==="success"?1000:400, ctx.currentTime);
+        oscillator.connect(ctx.destination);
+        oscillator.start();
+        oscillator.stop(ctx.currentTime + 0.15);
+      } catch(e) { console.log(e); }
     }
 
-    // QR Scan and Upload
+    // QR scan/upload
     const scannerOverlay = document.getElementById("scannerOverlay");
     const video = document.getElementById("video");
     const canvas = document.getElementById("canvas");
-    const closeScanner = document.getElementById("closeScanner");
+    const closeScannerBtn = document.getElementById("closeScanner");
 
-    let videoStream;
-
-    function handleQRResult(result) {
-      document.getElementById("searchBox").value = result;
-      runSearch(true);
-      closeScannerOverlay();
-    }
-
-    async function startScanner() {
+    scanBtn.addEventListener("click", async () => {
       scannerOverlay.style.display = "flex";
-      try {
-        videoStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-        video.srcObject = videoStream;
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        video.srcObject = stream;
         video.setAttribute("playsinline", true);
-        await video.play();
-        requestAnimationFrame(tick);
-      } catch(err) {
-        alert("Cannot access camera.");
-        closeScannerOverlay();
+        video.play();
+        tick();
       }
-    }
+    });
+
+    closeScannerBtn.addEventListener("click", () => {
+      scannerOverlay.style.display = "none";
+      const stream = video.srcObject;
+      if (stream) stream.getTracks().forEach(track => track.stop());
+      video.srcObject = null;
+    });
 
     function tick() {
       if (video.readyState === video.HAVE_ENOUGH_DATA) {
@@ -434,50 +417,44 @@
         const ctx = canvas.getContext("2d");
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
+        const code = jsQR(imageData.data, canvas.width, canvas.height);
         if (code) {
-          handleQRResult(code.data);
+          document.getElementById("searchBox").value = code.data;
+          runSearch(true);
+          closeScannerBtn.click();
           return;
         }
       }
       requestAnimationFrame(tick);
     }
 
-    function closeScannerOverlay() {
-      scannerOverlay.style.display = "none";
-      if (videoStream) {
-        videoStream.getTracks().forEach(track => track.stop());
-      }
-    }
-
-    scanBtn.addEventListener("click", startScanner);
-    closeScanner.addEventListener("click", closeScannerOverlay);
-
-    const uploadInput = document.getElementById("uploadQR");
-    uploadBtn.addEventListener("click", () => uploadInput.click());
-
-    uploadInput.addEventListener("change", async e => {
-      const file = e.target.files[0];
+    uploadBtn.addEventListener("click", () => document.getElementById("uploadQR").click());
+    document.getElementById("uploadQR").addEventListener("change", function(){
+      const file = this.files[0];
       if (!file) return;
-      const img = new Image();
-      img.onload = () => {
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(img, 0, 0);
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
-        if (code) handleQRResult(code.data);
-        else {
-          playBeep("error");
-          flashRed();
-          document.getElementById("validatedMsg").textContent = "NO RECORD FOUND!";
-          document.getElementById("validatedMsg").style.color = "red";
-          document.getElementById("validatedMsg").style.display = "block";
-        }
+      const reader = new FileReader();
+      reader.onload = e => {
+        const img = new Image();
+        img.onload = () => {
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0);
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const code = jsQR(imageData.data, canvas.width, canvas.height);
+          if (code) {
+            document.getElementById("searchBox").value = code.data;
+            runSearch(true);
+          } else {
+            flashRed();
+            playBeep("error");
+            document.getElementById("validatedMsg").textContent = "NO QR FOUND!";
+            document.getElementById("validatedMsg").style.display = "block";
+          }
+        };
+        img.src = e.target.result;
       };
-      img.src = URL.createObjectURL(file);
-      uploadInput.value = "";
+      reader.readAsDataURL(file);
     });
 
     loadData();
